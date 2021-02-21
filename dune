@@ -1,0 +1,4 @@
+(executable
+ (name brainstorm)
+ (libraries opium nocrypto.lwt)
+ (preprocess (pps lwt_ppx)))
