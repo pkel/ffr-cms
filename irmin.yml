@@ -1,0 +1,3 @@
+root: _db
+store: git
+contents: string

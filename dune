@@ -1,4 +1,4 @@
 (executable
  (name brainstorm)
- (libraries opium nocrypto.lwt)
+ (libraries irmin-unix nocrypto.lwt opium)
  (preprocess (pps lwt_ppx)))
