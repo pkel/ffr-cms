@@ -1,20 +1,5 @@
 open Lwt.Infix
-
-module Data = struct
-  module Git_store = Irmin_unix.Git.FS.KV(Irmin.Contents.String)
-
-  let git_config = Irmin_git.config "./_db"
-
-  let posts () =
-    let open Git_store in
-    Repo.v git_config >>=
-    master >>= fun t ->
-    list t [] >>=
-    Lwt_list.map_p (fun (step, tree) ->
-        let%lwt content = Tree.get tree [] in
-        Lwt.return (step, content)
-      )
-end
+open Brainstorm
 
 module View = struct
   open Tyxml.Html

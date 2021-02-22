@@ -1,0 +1,5 @@
+(library
+ (name brainstorm)
+ (libraries irmin-unix nocrypto.lwt toml)
+ (inline_tests)
+ (preprocess (pps lwt_ppx ppx_inline_test ppx_expect)))
