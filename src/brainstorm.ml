@@ -1,6 +1,11 @@
 open Lwt.Infix
 open Brainstorm
 
+let trim_opt s =
+  match String.trim s with
+  | "" -> None
+  | s -> Some s
+
 module View = struct
   open Tyxml.Html
 
@@ -16,10 +21,32 @@ module View = struct
                li [a ~a:[a_href ("/post/" ^ id)] [txt id]]) posts)
          ]
 
+  let input' id var lbl typ v =
+    let a = [a_id id; a_name var; a_input_type typ] in
+    let a = match v with
+      | None -> a
+      | Some x -> a_value x :: a
+    in
+    div
+      [ label ~a:[a_label_for id] [txt lbl]
+      ; input ~a ()
+      ]
+
   let post id =
-    let%lwt posts = Data.posts () in
-    page [ h1 [txt ("Post ID: " ^ id)]
-         ; p [txt (List.assoc id posts)]
+    let%lwt post = Data.post id in
+    page [ h1 [txt ("Post #" ^ id)]
+         ; form ~a:[a_method `Post]
+             [ fieldset
+                 [ input' "ptitle" "title" "Titel"      `Text post.head.title
+                 ; input' "plead"  "lead"  "Untertitel" `Text post.head.lead
+                 ; input' "pplace" "place" "Ort"        `Text post.head.place
+                 ; input' "pdate"  "date"  "Datum"      `Date
+                     (Option.map Data.string_of_date post.head.date)
+                 ]
+             ; textarea ~a:[a_id "pbody"; a_name "body"] (txt post.body)
+             ; br ()
+             ; input ~a:[a_value "Speichern"; a_input_type `Submit] ()
+             ]
          ; p [a ~a:[a_href "/"] [txt "Home"]]
          ]
 
@@ -103,6 +130,27 @@ let () =
   |> App.get "/post/:id" (fun req ->
       let id = Router.param req "id" in
       View.post id >|= Response.of_html
+    )
+  |> App.post "/post/:id" (fun req ->
+      let id = Router.param req "id" in
+      let str name =
+        Request.urlencoded name req >|= fun x ->
+        Option.bind x trim_opt
+      in
+      let%lwt title = str "title" in
+      let%lwt lead = str "lead" in
+      let%lwt date =
+        str "date" >|= fun x ->
+        Option.bind x Data.date_of_string_opt
+      in
+      let%lwt place = str "place" in
+      let%lwt body = str "body" >|= Option.value ~default:"" in
+      let post : Data.Post.t =
+        { head = { title; lead; date; place }
+        ; body }
+      in
+      let%lwt _ = Data.save_post id post in
+      Response.redirect_to req.target |> Lwt.return
     )
   |> App.run_command
   |> ignore
