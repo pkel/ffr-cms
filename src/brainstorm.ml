@@ -15,7 +15,7 @@ module View = struct
     |> Lwt.return
 
   let posts () =
-    let%lwt posts = Data.posts () in
+    let%lwt posts = Data.get_posts () in
     page [ h1 [txt "Posts"]
          ; ul ( List.map (fun (id, _) ->
                li [a ~a:[a_href ("/post/" ^ id)] [txt id]]) posts)
@@ -33,7 +33,7 @@ module View = struct
       ]
 
   let post id =
-    let%lwt post = Data.post id in
+    let%lwt post = Data.get_post id in
     page [ h1 [txt ("Post #" ^ id)]
          ; form ~a:[a_method `Post]
              [ fieldset
@@ -143,7 +143,7 @@ let () =
       and body = str "body" >|= Option.value ~default:""
       in
       let post : Data.Post.t =
-        { head = { title; lead; date; place }
+        { head = { title; lead; date; place; source=None }
         ; body }
       in
       let%lwt _ = Data.save_post id post in

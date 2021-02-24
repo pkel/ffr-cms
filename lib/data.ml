@@ -4,6 +4,7 @@ module Post = struct
     ; lead: string option
     ; date: string option
     ; place: string option
+    ; source: Yaml.value option (* used to preserve unknown yaml *)
     }
 
   type t =
@@ -11,29 +12,40 @@ module Post = struct
     ; body: string
     }
 
+  let update ~was is =
+    let head = { is.head with source = was.head.source } in
+    { is with head }
+
   let meta_to_yaml m : Yaml.value =
-    let string k = Option.map (fun x -> k, `String x) in
-    [ string "title" m.title
-    ; string "lead" m.lead
-    ; string "date" m.date
-    ; string "place" m.place
-    ]
-    |> List.filter_map (fun x -> x)
-    |> fun l -> `O l
+    let set k v kv =
+      List.remove_assoc k kv
+      |> fun kv -> match v with
+      | Some s -> (k, `String s) :: kv
+      | None -> kv
+    in
+    ( match m.source with
+      | Some (`O x) -> x
+      | _ -> []
+    )
+    |> set "title" m.title
+    |> set "lead" m.lead
+    |> set "date" m.date
+    |> set "place" m.place
+    |> fun l -> `O (List.rev l)
 
   let meta_of_yaml m =
     match m with
     | `O l ->
-      let get f k =
+      let get k =
         List.assoc_opt k l
-        |> Option.map f
+        |> Option.map (function `String x -> Some x | _ -> None)
         |> Option.join
       in
-      let string = get (function `String x -> Some x | _ -> None) in
-      Some { title = string "title"
-           ; lead = string "lead"
-           ; date = string "date"
-           ; place = string "place"
+      Some { title = get "title"
+           ; lead = get "lead"
+           ; date = get "date"
+           ; place = get "place"
+           ; source = Some m
            }
     | _ -> None
 
@@ -48,6 +60,7 @@ module Post = struct
     ; lead = None
     ; date = None
     ; place = None
+    ; source = None
     }
 
   let empty : t = { head = empty_meta; body= "" }
@@ -73,6 +86,7 @@ module Post = struct
           ; lead = Some "This is my very first post"
           ; date = Some "2021-02-22"
           ; place = Some "Innsbruck"
+          ; source = None
           }
       ; body = {|I'm too lazy to produce a long text here.
 Good news is, I don't have to.
@@ -98,7 +112,7 @@ The End.|} }
         The End. |}]
 
     let%test "post_roundtrip" =
-      dummy = (to_string dummy |> of_string)
+      dummy = (to_string dummy |> of_string |> update ~was:empty)
   end)
 end
 
@@ -108,7 +122,7 @@ module Git_store = Irmin_unix.Git.FS.KV(Irmin.Contents.String)
 
 let git_config = Irmin_git.config "./_db"
 
-let posts () =
+let get_posts () =
   let open Git_store in
   Repo.v git_config >>=
   master >>= fun t ->
@@ -118,7 +132,7 @@ let posts () =
       Lwt.return (step, Post.of_string content)
     )
 
-let post key =
+let get_post key =
   let open Git_store in
   Repo.v git_config >>=
   master >>= fun t ->
@@ -133,4 +147,6 @@ let save_post key post =
   let open Git_store in
   Repo.v git_config >>=
   master >>= fun t ->
-  set_exn ~info:("save post " ^ key |> info) t [key] (Post.to_string post)
+  get_post key >>= fun was ->
+  set_exn ~info:("save post " ^ key |> info) t [key]
+    Post.(update ~was post |> to_string)
