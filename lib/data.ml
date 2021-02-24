@@ -27,11 +27,12 @@ module Post = struct
       | Some (`O x) -> x
       | _ -> []
     )
-    |> set "title" m.title
-    |> set "lead" m.lead
-    |> set "date" m.date
+    (* reverse order *)
     |> set "place" m.place
-    |> fun l -> `O (List.rev l)
+    |> set "date" m.date
+    |> set "lead" m.lead
+    |> set "title" m.title
+    |> fun l -> `O l
 
   let meta_of_yaml m =
     match m with
@@ -138,15 +139,14 @@ let get_post key =
   master >>= fun t ->
   get t [key] >|= Post.of_string
 
-let info msg =
+let info ~author msg =
   let date = Unix.gettimeofday () |> Int64.of_float in
-  let author = "brainstorm@app" in
   fun () -> Irmin.Info.v ~date ~author msg
 
-let save_post key post =
+let save_post ~author key post =
   let open Git_store in
   Repo.v git_config >>=
   master >>= fun t ->
   get_post key >>= fun was ->
-  set_exn ~info:("save post " ^ key |> info) t [key]
+  set_exn ~info:("save post " ^ key |> info ~author) t [key]
     Post.(update ~was post |> to_string)
