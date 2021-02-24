@@ -40,8 +40,7 @@ module View = struct
                  [ input' "ptitle" "title" "Titel"      `Text post.head.title
                  ; input' "plead"  "lead"  "Untertitel" `Text post.head.lead
                  ; input' "pplace" "place" "Ort"        `Text post.head.place
-                 ; input' "pdate"  "date"  "Datum"      `Date
-                     (Option.map Data.string_of_date post.head.date)
+                 ; input' "pdate"  "date"  "Datum"      `Date post.head.date
                  ]
              ; textarea ~a:[a_id "pbody"; a_name "body"] (txt post.body)
              ; br ()
@@ -137,14 +136,12 @@ let () =
         Request.urlencoded name req >|= fun x ->
         Option.bind x trim_opt
       in
-      let%lwt title = str "title" in
-      let%lwt lead = str "lead" in
-      let%lwt date =
-        str "date" >|= fun x ->
-        Option.bind x Data.date_of_string_opt
+      let%lwt title = str "title"
+      and lead = str "lead"
+      and date = str "date"
+      and place = str "place"
+      and body = str "body" >|= Option.value ~default:""
       in
-      let%lwt place = str "place" in
-      let%lwt body = str "body" >|= Option.value ~default:"" in
       let post : Data.Post.t =
         { head = { title; lead; date; place }
         ; body }

@@ -1,14 +1,8 @@
-let string_of_date = ISO8601.Permissive.string_of_date
-let date_of_string = ISO8601.Permissive.date
-
-let date_of_string_opt s =
-  try Some (date_of_string s) with _ -> None
-
 module Post = struct
   type meta =
     { title: string option
     ; lead: string option
-    ; date: float option
+    ; date: string option
     ; place: string option
     }
 
@@ -17,43 +11,36 @@ module Post = struct
     ; body: string
     }
 
-  let meta_to_toml m =
-    let open Toml in
-    let open Types in
-    let key = Table.Key.bare_key_of_string in
-    let string k = Option.map (fun x -> key k, TString x)
-    and date k = Option.map (fun x -> key k, TDate x)
-    in
+  let meta_to_yaml m : Yaml.value =
+    let string k = Option.map (fun x -> k, `String x) in
     [ string "title" m.title
     ; string "lead" m.lead
+    ; string "date" m.date
     ; string "place" m.place
-    ; date "date" m.date
     ]
     |> List.filter_map (fun x -> x)
-    |> Table.of_key_values
+    |> fun l -> `O l
 
-  let meta_of_toml m =
-    let open Toml in
-    let open Types in
-    let key = Table.Key.bare_key_of_string in
-    let get f k =
-      Table.find_opt (key k) m
-      |> Option.map f
-      |> Option.join
-    in
-    let string = get (function TString x -> Some x | _ -> None)
-    and date = get (function TDate x -> Some x | _ -> None)
-    in
-    { title = string "title"
-    ; lead = string "lead"
-    ; date = date "date"
-    ; place = string "place"
-    }
+  let meta_of_yaml m =
+    match m with
+    | `O l ->
+      let get f k =
+        List.assoc_opt k l
+        |> Option.map f
+        |> Option.join
+      in
+      let string = get (function `String x -> Some x | _ -> None) in
+      Some { title = string "title"
+           ; lead = string "lead"
+           ; date = string "date"
+           ; place = string "place"
+           }
+    | _ -> None
 
   let to_string t =
     Format.asprintf "---\n%a---\n%s"
-      Toml.Printer.table
-      (meta_to_toml t.head)
+      Yaml.pp
+      (meta_to_yaml t.head)
       t.body
 
   let empty_meta : meta =
@@ -67,22 +54,24 @@ module Post = struct
 
   let of_string x =
     let open Astring.String in
-    if not (is_prefix ~affix:"---" x) then
-      { head = empty_meta; body = x }
+    let default = { head = empty_meta; body = x } in
+    if not (is_prefix ~affix:"---" x) then default
     else
       match cut ~sep:"\n---" (drop ~max:3 x) with
-      | None -> { head = empty_meta; body = x }
+      | None -> default
       | Some (head, body) ->
-        match Toml.Parser.from_string head with
-        | `Ok m -> { head = meta_of_toml m; body = trim body }
-        | `Error _ -> { head = empty_meta; body = x }
+        match Yaml.of_string head with
+        | Error _ -> default
+        | Ok m -> match meta_of_yaml m with
+          | None -> default
+          | Some head -> { head; body = trim body }
 
   let%test_module _ = (module struct
     let dummy : t =
       { head =
           { title = Some "Hello World"
           ; lead = Some "This is my very first post"
-          ; date = Some (date_of_string "2021-02-22T20:59:26+00:00")
+          ; date = Some "2021-02-22"
           ; place = Some "Innsbruck"
           }
       ; body = {|I'm too lazy to produce a long text here.
@@ -96,10 +85,10 @@ The End.|} }
       print_endline (to_string dummy);
       [%expect {|
         ---
-        date = 2021-02-22T00:00:00+00:00
-        lead = "This is my very first post"
-        place = "Innsbruck"
-        title = "Hello World"
+        title: Hello World
+        lead: This is my very first post
+        date: 2021-02-22
+        place: Innsbruck
         ---
         I'm too lazy to produce a long text here.
         Good news is, I don't have to.
