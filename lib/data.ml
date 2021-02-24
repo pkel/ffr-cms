@@ -123,30 +123,89 @@ module Git_store = Irmin_unix.Git.FS.KV(Irmin.Contents.String)
 
 let git_config = Irmin_git.config "./_db"
 
-let get_posts () =
+let get_post_years () =
   let open Git_store in
   Repo.v git_config >>=
   master >>= fun t ->
-  list t [] >>=
-  Lwt_list.map_p (fun (step, tree) ->
-      let%lwt content = Tree.get tree [] in
-      Lwt.return (step, Post.of_string content)
+  list t ["posts"] >>=
+  Lwt_list.filter_map_p (fun (step, tree) ->
+      match%lwt Tree.kind tree [] with
+      | Some `Node -> Lwt.return (Some step)
+      | _ -> Lwt.return None
+    )
+
+let get_posts ~year =
+  let open Git_store in
+  Repo.v git_config >>=
+  master >>= fun t ->
+  list t ("posts" :: year :: []) >>=
+  Lwt_list.filter_map_p (fun (step, tree) ->
+      match%lwt Tree.kind tree [] with
+      | Some `Node -> (
+          match%lwt Tree.find tree ["index.md"] with
+          | None -> Lwt.return None
+          | Some content ->
+            ([year; step], Post.of_string content)
+            |> Option.some
+            |> Lwt.return
+        )
+      | _ -> Lwt.return None
     )
 
 let get_post key =
   let open Git_store in
   Repo.v git_config >>=
   master >>= fun t ->
-  get t [key] >|= Post.of_string
+  get t ("posts" :: key @ ["index.md"]) >|= Post.of_string
 
 let info ~author msg =
   let date = Unix.gettimeofday () |> Int64.of_float in
   fun () -> Irmin.Info.v ~date ~author msg
 
-let save_post ~author key post =
+let post_key =
+  let regex = Str.regexp "[^0-9a-zA-ZöÖüÜäÄß-]+" in
+  let replace pat rpl str =
+    Astring.String.(cuts ~sep:pat str |> concat ~sep:rpl)
+  in
+  fun (post : Post.t) ->
+    let title =
+      Option.value ~default:"" post.head.title
+      |> Str.global_replace regex "_"
+      |> replace "ö" "o"
+      |> replace "Ö" "O"
+      |> replace "ü" "u"
+      |> replace "Ü" "U"
+      |> replace "ä" "a"
+      |> replace "Ä" "A"
+      |> replace "ß" "ss"
+    and year, month =
+      let date = Option.value ~default:"0000-00-00" post.head.date in
+      (* TODO: Properly parse this date. input validation *)
+      match Astring.String.cuts ~sep:"-" date with
+      | a :: b :: c :: _ -> a, b ^ "-" ^ c
+      | _ -> "0", "0"
+    in
+    [ year; month ^ "_" ^ title ]
+
+let save_post ~author old_key post =
+  let new_key = post_key post in
+  let info =
+    "Post speichern: " ^ (Astring.String.concat ~sep:"/" new_key)
+    |> info ~author
+  in
   let open Git_store in
   Repo.v git_config >>=
   master >>= fun t ->
-  get_post key >>= fun was ->
-  set_exn ~info:("save post " ^ key |> info ~author) t [key]
-    Post.(update ~was post |> to_string)
+  with_tree ~info t ["posts"]
+    ( let open Tree in function
+          | Some t ->
+            let%lwt was = get t (old_key @ ["index.md"]) >|= Post.of_string in
+            remove t old_key >>= fun t -> (* the remove deletes all files *)
+            (* TODO: what if new_key != old key, but new_key exists? *)
+            add t (new_key @ ["index.md"]) Post.(update ~was post |> to_string)
+            >|= Option.some
+          | None ->
+            add empty (new_key @ ["index.md"]) Post.(to_string post)
+            >|= Option.some
+    )
+  >|= Result.map (fun () -> new_key)

@@ -14,11 +14,19 @@ module View = struct
        (body content))
     |> Lwt.return
 
-  let posts () =
-    let%lwt posts = Data.get_posts () in
-    page [ h1 [txt "Posts"]
-         ; ul ( List.map (fun (id, _) ->
-               li [a ~a:[a_href ("/post/" ^ id)] [txt id]]) posts)
+  let post_years () =
+    let%lwt posts = Data.get_post_years () in
+    page [ h1 [txt "Posts nach Jahr"]
+         ; ul ( List.map (fun year ->
+               li [a ~a:[a_href ("/posts/" ^ year)] [txt year]]) posts)
+         ]
+
+  let posts ~year =
+    let%lwt posts = Data.get_posts ~year in
+    page [ h1 [txt ("Posts " ^ year)]
+         ; ul ( List.map (fun (key, _) ->
+               let uri = Astring.String.concat ~sep:"/" key in
+               li [a ~a:[a_href uri] [txt uri]]) posts)
          ]
 
   let input' id var lbl typ v =
@@ -32,8 +40,9 @@ module View = struct
       ; input ~a ()
       ]
 
-  let post id =
-    let%lwt post = Data.get_post id in
+  let post key =
+    let%lwt post = Data.get_post key in
+    let id = Astring.String.concat ~sep:"/" key in
     page [ h1 [txt ("Post #" ^ id)]
          ; form ~a:[a_method `Post]
              [ fieldset
@@ -200,20 +209,30 @@ let () =
   App.empty
   |> App.middleware Auth.middleware
   |> App.get "/" (fun _req ->
-      View.posts () >|= Response.of_html
+      Response.redirect_to "/posts" |> Lwt.return
     )
-  |> App.get "/post/:id" (fun req ->
-      let id = Router.param req "id" in
-      View.post id >|= Response.of_html
+  |> App.get "/posts" (fun _req ->
+      View.post_years () >|= Response.of_html
     )
-  |> App.post "/post/:id" (fun req ->
-      let id = Router.param req "id" in
+  |> App.get "/posts/:year" (fun req ->
+      let year = Router.param req "year" in
+      View.posts ~year >|= Response.of_html
+    )
+  |> App.get "/posts/:year/:id" (fun req ->
+      let id = Router.param req "id"
+      and year = Router.param req "year" in
+      View.post [year; id] >|= Response.of_html
+    )
+  |> App.post "/posts/:year/:id" (fun req ->
+      let id = Router.param req "id"
+      and year = Router.param req "year" in
       let str name =
         Request.urlencoded name req >|= fun x ->
         Option.bind x trim_opt
       in
       let%lwt title = str "title"
       and lead = str "lead"
+      (* TODO: Properly parse this date. input validation *)
       and date = str "date"
       and place = str "place"
       and body = str "body" >|= Option.value ~default:""
@@ -225,8 +244,12 @@ let () =
         let user = Auth.user req |> Option.get in
         Printf.sprintf "%s via %s <%s>" user.name app_name user.email
       in
-      let%lwt _ = Data.save_post ~author id post in
-      Response.redirect_to req.target |> Lwt.return
+      match%lwt Data.save_post ~author [year; id] post with
+      | Ok new_key ->
+        let uri = Astring.String.concat ~sep:"/" (".." :: new_key) in
+        Response.redirect_to uri |> Lwt.return
+      | _ -> (* TODO communicate error *)
+        Response.redirect_to "/" |> Lwt.return
     )
   |> App.run_command
   |> ignore
