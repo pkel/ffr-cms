@@ -88,11 +88,8 @@ module Auth = struct
     ; email: string (* goes into commit message *)
     } [@@deriving sexp_of]
 
-
   type user_auth =
-    { salt: string (* binary seed for password hash *)
-    ; password_hash: string
-    }
+    { argon2encoded: string }
 
   type user =
     { data: user_data
@@ -101,29 +98,30 @@ module Auth = struct
 
   let _ = Nocrypto_entropy_lwt.initialize ()
 
-  let hash_password ~salt password =
-    let salt = Cstruct.of_string salt
-    and password = Cstruct.of_string password
-    in
-    let tmp = ref (Nocrypto.Hash.SHA256.digestv [salt; password])
-    and i = ref 1
-    in
-    (* TODO: we want a slower hash function here. ASICs will outrun us! *)
-    while (!i < 1000) do
-      tmp := Nocrypto.Hash.SHA256.digest !tmp;
-      incr i
-    done ;
-    Cstruct.to_string !tmp
+  let salt len =
+    Nocrypto.Rng.generate len |> Cstruct.to_string
 
-  let salt () =
-    Nocrypto.Rng.generate 32 |> Cstruct.to_string
-
-  let user ~email ~name password : user =
-    let salt = salt () in
-    let password_hash = hash_password ~salt password
+  let user ~email ~name pwd : user =
+    let salt_len = 16 in
+    let salt = salt salt_len
+    and t_cost = 1
+    and m_cost = 1 lsl 20
+    and parallelism = 4
+    and hash_len = 16
+    and kind = Argon2.ID
+    and version = Argon2.VERSION_13
     in
-    { data = { name; email }
-    ; auth = { password_hash ; salt }
+    let encoded_len =
+      Argon2.encoded_len ~salt_len ~t_cost ~m_cost ~kind ~hash_len ~parallelism
+    in
+    let argon2encoded =
+      Argon2.hash ~t_cost ~m_cost ~parallelism ~pwd ~salt ~hash_len
+        ~encoded_len ~version ~kind
+      |> Result.map snd
+      |> Result.get_ok
+    in
+    { data = {name ; email}
+    ; auth = {argon2encoded}
     }
 
   (* TODO: read these entries from the git repository *)
@@ -131,7 +129,7 @@ module Auth = struct
     [ "pkel", user ~email:"patrik@pkel.dev" ~name:"Patrik Keller"
         "FZMV9Kgha69fN3sAbiK2" ]
 
-  let nobody = user ~email:"" ~name:"" ""
+  let nobody = user ~email:"" ~name:"" (salt 16)
 
   let sessions = Hashtbl.create 7
 
@@ -148,14 +146,15 @@ module Auth = struct
     (* handle post from login form *)
     try
       let%lwt user = Request.urlencoded "user" req >|= Option.get
-      and password = Request.urlencoded "password" req >|= Option.get
+      and pwd = Request.urlencoded "password" req >|= Option.get
       in
       let registered, user =
         match List.assoc_opt user users with
         | Some x -> true, x
         | None -> false, nobody
       in
-      assert (user.auth.password_hash = hash_password ~salt:user.auth.salt password);
+      let encoded = user.auth.argon2encoded in
+      assert (Argon2.verify ~encoded ~pwd ~kind:ID |> Result.get_ok);
       (* Intentionally check registered after hashing.
        * Otherwise, we provide a username oracle. *)
       assert registered;
