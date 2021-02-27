@@ -1,5 +1,6 @@
 open Lwt.Infix
-open Brainstorm
+open Lwt.Syntax
+open Bslib
 
 let trim_opt s =
   match String.trim s with
@@ -12,17 +13,16 @@ module View = struct
   let page content =
     (html (head (title (txt "Brainstorm")) [])
        (body content))
-    |> Lwt.return
 
   let post_years () =
-    let%lwt posts = Data.get_post_years () in
+    let+ posts = Data.get_post_years () in
     page [ h1 [txt "Posts nach Jahr"]
          ; ul ( List.map (fun year ->
                li [a ~a:[a_href ("/posts/" ^ year)] [txt year]]) posts)
          ]
 
   let posts ~year =
-    let%lwt posts = Data.get_posts ~year in
+    let+ posts = Data.get_posts ~year in
     page [ h1 [txt ("Posts " ^ year)]
          ; ul ( List.map (fun (key, _) ->
                let uri = Astring.String.concat ~sep:"/" key in
@@ -41,7 +41,7 @@ module View = struct
       ]
 
   let post key =
-    let%lwt post = Data.get_post key in
+    let+ post = Data.get_post key in
     let id = Astring.String.concat ~sep:"/" key in
     page [ h1 [txt ("Post #" ^ id)]
          ; form ~a:[a_method `Post]
@@ -76,6 +76,7 @@ module View = struct
            | None -> []
            | Some m -> [p [ txt m ]]
          )
+    |> Lwt.return
 end
 
 open Opium
@@ -145,8 +146,8 @@ module Auth = struct
   let post_login req =
     (* handle post from login form *)
     try
-      let%lwt user = Request.urlencoded "user" req >|= Option.get
-      and pwd = Request.urlencoded "password" req >|= Option.get
+      let* user = Request.urlencoded "user" req >|= Option.get
+      and* pwd = Request.urlencoded "password" req >|= Option.get
       in
       let registered, user =
         match List.assoc_opt user users with
@@ -229,12 +230,12 @@ let () =
         Request.urlencoded name req >|= fun x ->
         Option.bind x trim_opt
       in
-      let%lwt title = str "title"
-      and lead = str "lead"
+      let* title = str "title"
+      and* lead = str "lead"
       (* TODO: Properly parse this date. input validation *)
-      and date = str "date"
-      and place = str "place"
-      and body = str "body" >|= Option.value ~default:""
+      and* date = str "date"
+      and* place = str "place"
+      and* body = str "body" >|= Option.value ~default:""
       in
       let post : Data.Post.t =
         { head = { title; lead; date; place; source=None }
@@ -243,12 +244,12 @@ let () =
         let user = Auth.user req |> Option.get in
         Printf.sprintf "%s via %s <%s>" user.name app_name user.email
       in
-      match%lwt Data.save_post ~author [year; id] post with
+      Data.save_post ~author [year; id] post >|= function
       | Ok new_key ->
         let uri = Astring.String.concat ~sep:"/" (".." :: new_key) in
-        Response.redirect_to uri |> Lwt.return
+        Response.redirect_to uri
       | _ -> (* TODO communicate error *)
-        Response.redirect_to "/" |> Lwt.return
+        Response.redirect_to "/"
     )
   |> App.run_command
   |> ignore

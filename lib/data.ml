@@ -1,3 +1,6 @@
+open Lwt.Infix
+open Lwt.Syntax
+
 module Post = struct
   type meta =
     { title: string option
@@ -117,8 +120,6 @@ The End.|} }
   end)
 end
 
-open Lwt.Infix
-
 module Git_store = Irmin_unix.Git.FS.KV(Irmin.Contents.String)
 
 let git_config = Irmin_git.config "./_db"
@@ -129,9 +130,9 @@ let get_post_years () =
   master >>= fun t ->
   list t ["posts"] >>=
   Lwt_list.filter_map_p (fun (step, tree) ->
-      match%lwt Tree.kind tree [] with
-      | Some `Node -> Lwt.return (Some step)
-      | _ -> Lwt.return None
+      Tree.kind tree [] >|= function
+      | Some `Node -> Some step
+      | _ -> None
     )
 
 let get_posts ~year =
@@ -140,14 +141,12 @@ let get_posts ~year =
   master >>= fun t ->
   list t ("posts" :: year :: []) >>=
   Lwt_list.filter_map_p (fun (step, tree) ->
-      match%lwt Tree.kind tree [] with
+      Tree.kind tree [] >>= function
       | Some `Node -> (
-          match%lwt Tree.find tree ["index.md"] with
-          | None -> Lwt.return None
+          Tree.find tree ["index.md"] >|= function
+          | None -> None
           | Some content ->
-            ([year; step], Post.of_string content)
-            |> Option.some
-            |> Lwt.return
+            Some ([year; step], Post.of_string content)
         )
       | _ -> Lwt.return None
     )
@@ -199,7 +198,7 @@ let save_post ~author old_key post =
   with_tree ~info t ["posts"]
     ( let open Tree in function
           | Some t ->
-            let%lwt was = get t (old_key @ ["index.md"]) >|= Post.of_string in
+            let* was = get t (old_key @ ["index.md"]) >|= Post.of_string in
             remove t old_key >>= fun t -> (* the remove deletes all files *)
             (* TODO: what if new_key != old key, but new_key exists? *)
             add t (new_key @ ["index.md"]) Post.(update ~was post |> to_string)
