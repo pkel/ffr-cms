@@ -116,7 +116,9 @@ module Auth = struct
     ; auth: user_auth
     }
 
-  let _ = Nocrypto_entropy_lwt.initialize ()
+  let _init =
+    (* Seed Rng and reseed it regularly *)
+    Nocrypto_entropy_lwt.initialize ()
 
   let salt len =
     Nocrypto.Rng.generate len |> Cstruct.to_string
@@ -151,6 +153,7 @@ module Auth = struct
 
   let nobody = user ~email:"" ~name:"" (salt 16)
 
+  let sessions_dbm = Dbm.opendbm "_sessions" [Dbm_rdwr; Dbm_create] 0o600
   let sessions = Hashtbl.create 7
 
   let auth_cookie_name = "session"
@@ -165,11 +168,11 @@ module Auth = struct
   let post_login req =
     (* handle post from login form *)
     try
-      let* user = Request.urlencoded "user" req >|= Option.get
+      let* user_id = Request.urlencoded "user" req >|= Option.get
       and* pwd = Request.urlencoded "password" req >|= Option.get
       in
       let registered, user =
-        match List.assoc_opt user users with
+        match List.assoc_opt user_id users with
         | Some x -> true, x
         | None -> false, nobody
       in
@@ -183,6 +186,7 @@ module Auth = struct
         |> Nocrypto.Base64.encode
         |> Cstruct.to_string
       in
+      Dbm.replace sessions_dbm id user_id; (* store session persistently *)
       Hashtbl.replace sessions id user.data; (* store session *)
       Response.redirect_to req.target (* redirect get *)
       |> Response.add_cookie
@@ -196,16 +200,32 @@ module Auth = struct
       View.login ~message:"login failed" ()
       >|= Response.of_html
 
+  let dbm_mem dbm key =
+    match Dbm.find dbm key with
+    | _ -> true
+    | exception _ -> false
+
   let middleware =
     let filter handler req =
       match Request.cookie auth_cookie_name req with
-      | Some value when Hashtbl.mem sessions value ->
-        (* Authenticated *)
-        let user = Hashtbl.find sessions value in
-        let env =
-          Context.add user_key user req.env
-        in
+      | Some cookie when Hashtbl.mem sessions cookie ->
+        (* Authenticated (memory) *)
+        let user = Hashtbl.find sessions cookie in
+        let env = Context.add user_key user req.env in
         handler { req with env }
+      | Some cookie when dbm_mem sessions_dbm cookie ->
+        (* Authenticated (persistent store) *)
+        let user = Dbm.find sessions_dbm cookie in
+        begin
+          match List.assoc_opt user users with
+          | Some user ->
+            let env = Context.add user_key user.data req.env in
+            Hashtbl.replace sessions cookie user.data;
+            handler { req with env }
+          | None ->
+            (* user has a valid cookie but we cannot find his data *)
+            Response.redirect_to req.target |> Lwt.return
+        end
       | _ ->
         (* Not authenticated *)
         match req.meth with
