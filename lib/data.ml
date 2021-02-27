@@ -129,9 +129,9 @@ let get_post_years () =
   Repo.v git_config >>=
   master >>= fun t ->
   list t ["posts"] >>=
-  Lwt_list.filter_map_p (fun (step, tree) ->
+  Lwt_list.filter_map_p (fun (year, tree) ->
       Tree.kind tree [] >|= function
-      | Some `Node -> Some step
+      | Some `Node -> Some year
       | _ -> None
     )
 
@@ -140,22 +140,22 @@ let get_posts ~year =
   Repo.v git_config >>=
   master >>= fun t ->
   list t ("posts" :: year :: []) >>=
-  Lwt_list.filter_map_p (fun (step, tree) ->
+  Lwt_list.filter_map_p (fun (id, tree) ->
       Tree.kind tree [] >>= function
       | Some `Node -> (
           Tree.find tree ["index.md"] >|= function
           | None -> None
           | Some content ->
-            Some ([year; step], Post.of_string content)
+            Some ((year, id), Post.of_string content)
         )
       | _ -> Lwt.return None
     )
 
-let get_post key =
+let get_post (year, id) =
   let open Git_store in
   Repo.v git_config >>=
   master >>= fun t ->
-  get t ("posts" :: key @ ["index.md"]) >|= Post.of_string
+  get t ["posts"; year; id; "index.md"] >|= Post.of_string
 
 let info ~author msg =
   let date = Unix.gettimeofday () |> Int64.of_float in
@@ -184,12 +184,12 @@ let post_key =
       | a :: b :: c :: _ -> a, b ^ "-" ^ c
       | _ -> "0", "0"
     in
-    [ year; month ^ "_" ^ title ]
+    year, month ^ "_" ^ title
 
-let save_post ~author old_key post =
-  let new_key = post_key post in
+let save_post ~author (oyear, oid) post =
+  let (nyear, nid) as nkey = post_key post in
   let info =
-    "Post speichern: " ^ (Astring.String.concat ~sep:"/" new_key)
+    "Post speichern: " ^ nyear ^ "/" ^ nid
     |> info ~author
   in
   let open Git_store in
@@ -198,13 +198,13 @@ let save_post ~author old_key post =
   with_tree ~info t ["posts"]
     ( let open Tree in function
           | Some t ->
-            let* was = get t (old_key @ ["index.md"]) >|= Post.of_string in
-            remove t old_key >>= fun t -> (* the remove deletes all files *)
+            let* was = get t [oyear; oid; "index.md"] >|= Post.of_string in
+            remove t [oyear; oid] >>= fun t -> (* the remove deletes all files *)
             (* TODO: what if new_key != old key, but new_key exists? *)
-            add t (new_key @ ["index.md"]) Post.(update ~was post |> to_string)
+            add t [nyear; nid; "index.md"] Post.(update ~was post |> to_string)
             >|= Option.some
           | None ->
-            add empty (new_key @ ["index.md"]) Post.(to_string post)
+            add empty [nyear; nid; "index.md"] Post.(to_string post)
             >|= Option.some
     )
-  >|= Result.map (fun () -> new_key)
+  >|= Result.map (fun () -> nkey)
