@@ -50,7 +50,7 @@ module View = struct
       ]
 
   let post key =
-    let+ post = Data.get_post key in
+    let+ post, files = Data.get_post key in
     let name = fst key ^ "/" ^ snd key in
     page [ h1 [txt ("Post " ^ name)]
          ; form ~a:[ a_method `Post
@@ -70,6 +70,10 @@ module View = struct
                  ]
              ; button ~a:[ a_button_type `Submit ] [ txt "Speichern" ]
              ]
+         ; div ( List.map (fun file ->
+               img ~src:(Location.attachment key file)
+                 ~alt:file ~a:[a_style "max-width: 20rem"] ()
+             ) files )
          ; p [a ~a:[a_href (Location.year (fst key))] [txt (fst key)]]
          ; p [a ~a:[a_href Location.root] [txt "Home"]]
          ]
@@ -298,6 +302,19 @@ let () =
         Response.redirect_to (Location.post key')
       | _ -> (* TODO communicate error *)
         Response.redirect_to (Location.post key)
+    )
+  |> App.get (Location.attachment (":a", ":b") ":c") (fun req ->
+      let key = Router.(param req "a", param req "b")
+      and fname = Router.param req "c"
+      in
+      Data.get_attachment key fname >|= function
+      | None -> Response.of_plain_text ~status:(`Code 404) "not found"
+      | Some data ->
+        let headers =
+          Headers.of_list
+            [ "Content-Type", Magic_mime.lookup fname ]
+        in
+        Response.of_plain_text ~headers data
     )
   |> App.run_command
   |> ignore

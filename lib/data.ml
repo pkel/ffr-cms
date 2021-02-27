@@ -153,9 +153,25 @@ let get_posts ~year =
 
 let get_post (year, id) =
   let open Git_store in
-  Repo.v git_config >>=
-  master >>= fun t ->
-  get t ["posts"; year; id; "index.md"] >|= Post.of_string
+  let* t = Repo.v git_config >>= master in
+  (* TODO: get -> find ; return post option *)
+  let* post = get t ["posts"; year; id; "index.md"] >|= Post.of_string in
+  let+ files =
+    list t ["posts"; year; id] >>=
+    Lwt_list.filter_map_s (fun (step, tree) ->
+        if step <> "index.md" then
+          Tree.mem tree [] >|= function
+          | true -> Some step
+          | false -> None
+        else Lwt.return None
+      )
+  in
+  post, files
+
+let get_attachment (year, id) filename =
+  let open Git_store in
+  let* t = Repo.v git_config >>= master in
+  find t ["posts"; year; id; filename]
 
 let info ~author msg =
   let date = Unix.gettimeofday () |> Int64.of_float in
