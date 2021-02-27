@@ -186,47 +186,48 @@ let post_key =
     in
     year, month ^ "_" ^ title
 
-let save_post ~author (oyear, oid) post =
-  let (nyear, nid) as nkey = post_key post in
+let save_post ~author ~files (oyear, oid) post =
+  let (year, id) as nkey = post_key post in
   let info =
-    "Post speichern: " ^ nyear ^ "/" ^ nid
+    "Post speichern: " ^ year ^ "/" ^ id
     |> info ~author
   in
   let open Git_store in
   Repo.v git_config >>=
   master >>= fun t ->
-  with_tree ~info t ["posts"]
-    ( let open Tree in function
-          | Some t ->
-            let* was = get t [oyear; oid; "index.md"] >|= Post.of_string in
-            remove t [oyear; oid] >>= fun t -> (* the remove deletes all files *)
-            (* TODO: what if new_key != old key, but new_key exists? *)
-            add t [nyear; nid; "index.md"] Post.(update ~was post |> to_string)
-            >|= Option.some
-          | None ->
-            add empty [nyear; nid; "index.md"] Post.(to_string post)
-            >|= Option.some
+  with_tree ~info t ["posts"] (fun t ->
+      let open Tree in
+      let t =
+        (* posts dir might not exists *)
+        Option.value ~default:empty t
+      in
+      let* t =
+        (* move to new location *)
+        let* old = get_tree t [oyear; oid] in
+        remove t [oyear; oid] >>= fun t ->
+        (* TODO: what if new_key != old key, but new_key exists? *)
+        add_tree t [year; id] old
+      in
+      let* t =
+        (* write/update index.md *)
+        let* post =
+          find t [year; id; "index.md"]
+          >|= Option.map Post.of_string
+          >|= function
+          | None -> post
+          | Some was -> Post.update ~was post
+        in
+        add t [year; id; "index.md"] (Post.to_string post)
+      in
+      let* t =
+        (* add new files *)
+        Lwt_list.fold_left_s (fun t (filename, data) ->
+            if filename = "index.md" then
+              Lwt.return t
+            else
+              add t [year; id; filename] data
+          ) t files
+      in
+      Lwt.return (Some t)
     )
   >|= Result.map (fun () -> nkey)
-
-let add_attachments ~author (year, id) assoc =
-  let info =
-    "Bilder Hochladen: " ^ year ^ "/" ^ id
-    |> info ~author
-  in
-  let open Git_store in
-  Repo.v git_config >>=
-  master >>= fun t ->
-  with_tree ~info t ["posts"; year; id ]
-    ( let open Tree in function
-          | Some t ->
-            Lwt_list.fold_left_s (fun t (filename, data) ->
-                if filename = "index.md" then
-                  Lwt.return t
-                else (
-                  remove t [ filename ] >>= fun t ->
-                  add t [ filename ] data
-                )) t assoc
-            >|= Option.some
-          | None -> Lwt.return None
-    )
