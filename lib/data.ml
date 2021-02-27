@@ -208,3 +208,25 @@ let save_post ~author (oyear, oid) post =
             >|= Option.some
     )
   >|= Result.map (fun () -> nkey)
+
+let add_attachments ~author (year, id) assoc =
+  let info =
+    "Bilder Hochladen: " ^ year ^ "/" ^ id
+    |> info ~author
+  in
+  let open Git_store in
+  Repo.v git_config >>=
+  master >>= fun t ->
+  with_tree ~info t ["posts"; year; id ]
+    ( let open Tree in function
+          | Some t ->
+            Lwt_list.fold_left_s (fun t (filename, data) ->
+                if filename = "index.md" then
+                  Lwt.return t
+                else (
+                  remove t [ filename ] >>= fun t ->
+                  add t [ filename ] data
+                )) t assoc
+            >|= Option.some
+          | None -> Lwt.return None
+    )

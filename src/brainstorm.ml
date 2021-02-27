@@ -11,6 +11,7 @@ module Location = struct
   let root = "/"
   let year y = root ^ "posts/" ^ y
   let post (y, id) = year y ^ "/" ^ id
+  let attachment key file = post key ^ "/" ^ file
 end
 
 module View = struct
@@ -61,7 +62,16 @@ module View = struct
                  ]
              ; textarea ~a:[a_id "pbody"; a_name "body"] (txt post.body)
              ; br ()
-             ; input ~a:[a_value "Speichern"; a_input_type `Submit] ()
+             ; button ~a:[ a_button_type `Submit ] [ txt "Speichern" ]
+             ]
+         ; form ~a:[ a_method `Post
+                   ; a_action (Location.post key ^ "?action=upload")
+                   ; a_enctype "multipart/form-data"
+                   ]
+             [ input ~a:[ a_input_type `File; a_name "photo_upload"
+                        ; a_multiple () ; a_accept ["image/*"]; a_required ()
+                        ] ()
+             ; button ~a:[ a_button_type `Submit ] [ txt "Bilder Hochladen" ]
              ]
          ; p [a ~a:[a_href (Location.year (fst key))] [txt (fst key)]]
          ; p [a ~a:[a_href Location.root] [txt "Home"]]
@@ -214,6 +224,58 @@ end
 
 let app_name = "brainstorm"
 
+let author req =
+  let user = Auth.user req |> Option.get in
+  Printf.sprintf "%s via %s <%s>" user.name app_name user.email
+
+let post_save key req =
+  let str name =
+    Request.urlencoded name req >|= fun x ->
+    Option.bind x trim_opt
+  in
+  let* title = str "title"
+  and* lead = str "lead"
+  (* TODO: Properly parse this date. input validation. see RFC 3339 *)
+  and* date = str "date"
+  and* place = str "place"
+  and* body = str "body" >|= Option.value ~default:""
+  in
+  let post : Data.Post.t =
+    { head = { title; lead; date; place; source=None }
+    ; body }
+  and author = author req
+  in
+  Data.save_post ~author key post >|= function
+  | Ok key' ->
+    Response.redirect_to (Location.post key')
+  | _ -> (* TODO communicate error *)
+    Response.redirect_to Location.root
+
+let post_upload key req =
+  let files = Hashtbl.create ~random:true 5 in
+  let callback ~name:_ ~filename data =
+    if filename <> "" then (
+      let l = Hashtbl.find_opt files filename |> Option.value ~default:[] in
+      Hashtbl.replace files filename (data :: l)
+    );
+    Lwt.return ()
+  in
+  let* _ = Request.to_multipart_form_data_exn ~callback req in
+  let* files =
+    Lwt_list.map_p (fun (fname, parts) ->
+        let () = Logs.info
+            (fun m -> m "File upload: %s" (Location.attachment key fname))
+        in
+        Lwt.return (fname, List.rev parts |> Astring.String.concat)
+      ) (Hashtbl.to_seq files |> List.of_seq)
+  in
+  Data.add_attachments ~author:(author req)
+    key files >|= function
+  | Ok () ->
+    Response.redirect_to (Location.post key)
+  | _ -> (* TODO communicate error *)
+    Response.redirect_to Location.root
+
 let () =
   App.empty
   |> App.middleware Auth.middleware
@@ -229,30 +291,11 @@ let () =
       View.post key >|= Response.of_html
     )
   |> App.post (Location.post (":a", ":b")) (fun req ->
+      (* I think both actions could go into the same multipart/form-data request *)
       let key = Router.(param req "a", param req "b") in
-      let str name =
-        Request.urlencoded name req >|= fun x ->
-        Option.bind x trim_opt
-      in
-      let* title = str "title"
-      and* lead = str "lead"
-      (* TODO: Properly parse this date. input validation. see RFC 3339 *)
-      and* date = str "date"
-      and* place = str "place"
-      and* body = str "body" >|= Option.value ~default:""
-      in
-      let post : Data.Post.t =
-        { head = { title; lead; date; place; source=None }
-        ; body }
-      and author =
-        let user = Auth.user req |> Option.get in
-        Printf.sprintf "%s via %s <%s>" user.name app_name user.email
-      in
-      Data.save_post ~author key post >|= function
-      | Ok key' ->
-        Response.redirect_to (Location.post key')
-      | _ -> (* TODO communicate error *)
-        Response.redirect_to Location.root
+      match Request.query "action" req with
+      | Some "upload" -> post_upload key req
+      | _ -> post_save key req
     )
   |> App.run_command
   |> ignore
