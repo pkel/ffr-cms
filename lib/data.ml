@@ -76,6 +76,7 @@ module Post = struct
     |> fun l -> `O l
 
   let meta_of_yaml m =
+    (* TODO: investigate: `String "1" roundtrips to `Float 1. *)
     match m with
     | `O l ->
       let get k =
@@ -313,6 +314,10 @@ let save_post ~author ~files (oyear, oid) post =
           | Some was -> Post.update ~was post
         in
         add t [year; id; "index.md"] (Post.to_string post)
+      in
+      let* t =
+        (* TODO: remove files not mentioned in gallery *)
+        Lwt.return t
       in
       let* t =
         (* add new files *)

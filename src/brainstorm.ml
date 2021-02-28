@@ -301,10 +301,6 @@ let () =
       View.post key >|= Response.of_html
     )
   |> App.post (Location.post (":a", ":b")) (fun req ->
-      (* TODO: handle ?up/down/delete=i parameters
-         probably save_post should delete all files that are neither
-         in gallery nor fresh
-      *)
       let key = Router.(param req "a", param req "b") in
       let files = Hashtbl.create ~random:true 5 in
       let callback ~name:_ ~filename data =
@@ -333,6 +329,7 @@ let () =
       and place = field "place"
       and body = field "body" |> Option.value ~default:""
       and gallery =
+        (* get filenames *)
         List.filter_map
           (fun (k, v) ->
              match Astring.String.cuts ~sep:"-" k with
@@ -340,7 +337,8 @@ let () =
              | _ -> None
           )
           fields
-        |> List.map (fun (id, filename) ->
+        |> (* read other fields *)
+        List.map (fun (id, filename) ->
             let field k = field ("gallery-" ^ id ^ "-" ^ k) in
             let open Data.Post in
             let image =
@@ -354,11 +352,55 @@ let () =
             in
             position, image
           )
-        |> List.sort (fun (a,_) (b,_) -> Int.compare a b)
-        |> List.map snd
+        |> (* move gallery item *)
+        ( Request.query "up" req
+          |> Option.map int_of_string_opt
+          |> Option.join
+          |> function
+          | None -> fun x -> x
+          | Some i -> List.map (fun (j, x) ->
+              let j' =
+                if j = i then i - 1
+                else if j = i - 1  then i
+                else j
+              in j', x
+            )
+        )
+        |> (* move gallery item *)
+        ( Request.query "down" req
+          |> Option.map int_of_string_opt
+          |> Option.join
+          |> function
+          | None -> fun x -> x
+          | Some i -> List.map (fun (j, x) ->
+              let j' =
+                if j = i then i + 1
+                else if j = i + 1  then i
+                else j
+              in j', x
+            )
+        )
+        |> (* delete gallery entry *)
+        ( Request.query "delete" req
+          |> Option.map int_of_string_opt
+          |> Option.join
+          |> function
+          | None -> fun x -> x
+          | Some i -> List.filter (fun (j, _) -> j <> i)
+        )
+        |> (* sort gallery by position *)
+        List.sort (fun (a,_) (b,_) -> Int.compare a b)
+        |> (* drop position *)
+        List.map snd
       in
       let post : Data.Post.t =
-        { head = { title; lead; date; place; gallery; foreign=None }
+        { head = { title
+                 ; lead
+                 ; date
+                 ; place
+                 ; gallery
+                 ; foreign = None
+                 }
         ; body }
       and author = author req
       in
