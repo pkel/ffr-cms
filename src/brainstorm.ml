@@ -38,31 +38,61 @@ module View = struct
          ; p [a ~a:[a_href Location.root] [txt "Home"]]
          ]
 
-  let input' id var lbl typ v =
-    let a = [a_id id; a_name var; a_input_type typ] in
-    let a = match v with
-      | None -> a
-      | Some x -> a_value x :: a
+  let hex_hash (type a) (x: a) : string =
+    Hashtbl.hash x |> Printf.sprintf "%x"
+
+  let post key =
+    let field_id =
+      let prefix = hex_hash key in
+      fun x -> "post-" ^ prefix ^ "-" ^ x
     in
+    let input' var lbl typ v =
+      let id = field_id var in
+      let a = [a_id id; a_name var; a_input_type typ] in
+      let a = match v with
+        | None -> a
+        | Some x -> a_value x :: a
+      in
     div
       [ label ~a:[a_label_for id] [txt lbl]
       ; input ~a ()
       ]
-
-  let post key =
-    let+ post, files = Data.get_post key in
+    in
+    let+ post = Data.get_post key in
     let name = fst key ^ "/" ^ snd key in
     page [ h1 [txt ("Post " ^ name)]
          ; form ~a:[ a_method `Post
                    ; a_enctype "multipart/form-data"
                    ]
              [ fieldset
-                 [ input' "ptitle" "title" "Titel"      `Text post.head.title
-                 ; input' "plead"  "lead"  "Untertitel" `Text post.head.lead
-                 ; input' "pplace" "place" "Ort"        `Text post.head.place
-                 ; input' "pdate"  "date"  "Datum"      `Date post.head.date
+                 [ input' "title" "Titel"      `Text post.head.title
+                 ; input' "lead"  "Untertitel" `Text post.head.lead
+                 ; input' "place" "Ort"        `Text post.head.place
+                 ; input' "date"  "Datum"      `Date post.head.date
                  ]
              ; textarea ~a:[a_id "pbody"; a_name "body"] (txt post.body)
+             ; fieldset (
+                 List.map
+                   ( fun x ->
+                       let open Data.Post in
+                       let id_prefix = hex_hash x.filename in
+                       let input' var =
+                         input'
+                           ("gallery" ^ "-" ^ id_prefix ^ "-" ^ var)
+                       in
+                       fieldset
+                         [ img
+                           ~a:[a_style "max-width: 20rem"]
+                           ~src:(Location.attachment key x.filename)
+                           ~alt:(Option.value ~default:"" x.caption)
+                           ()
+                         ; input' "caption" "Titel" `Text x.caption
+                         ; input' "source" "Quelle" `Text x.source
+                         ; input' "filename" "" `Hidden (Some x.filename)
+                         ]
+
+                   ) post.head.gallery
+               )
              ; fieldset
                  [ input ~a:[ a_input_type `File; a_name "pupload"
                             ; a_multiple () ; a_accept ["image/*"]
@@ -70,10 +100,6 @@ module View = struct
                  ]
              ; button ~a:[ a_button_type `Submit ] [ txt "Speichern" ]
              ]
-         ; div ( List.map (fun file ->
-               img ~src:(Location.attachment key file)
-                 ~alt:file ~a:[a_style "max-width: 20rem"] ()
-             ) files )
          ; p [a ~a:[a_href (Location.year (fst key))] [txt (fst key)]]
          ; p [a ~a:[a_href Location.root] [txt "Home"]]
          ]
@@ -291,9 +317,25 @@ let () =
       and date = field "date"
       and place = field "place"
       and body = field "body" |> Option.value ~default:""
+      and gallery =
+        List.filter_map
+          (fun (k, v) ->
+             match Astring.String.cuts ~sep:"-" k with
+             | ["gallery"; id; "filename"] -> Some (id, v)
+             | _ -> None
+          )
+          fields
+        |> List.map (fun (id, filename) ->
+            let field k = field ("gallery-" ^ id ^ "-" ^ k) in
+            let open Data.Post in
+            { caption = field "caption"
+            ; source = field "source"
+            ; filename
+            }
+          )
       in
       let post : Data.Post.t =
-        { head = { title; lead; date; place; source=None }
+        { head = { title; lead; date; place; gallery; foreign=None }
         ; body }
       and author = author req
       in

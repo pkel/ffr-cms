@@ -2,22 +2,54 @@ open Lwt.Infix
 open Lwt.Syntax
 
 module Post = struct
+  type image =
+    { filename: string
+    ; caption: string option
+    ; source: string option
+    }
+
+  let image ?caption ?source filename = { caption; source; filename }
+
+  let image_to_yaml x : Yaml.value =
+    let set k v kv =
+      List.remove_assoc k kv
+      |> fun kv -> match v with
+      | Some s -> (k, `String s) :: kv
+      | None -> kv
+    in
+    []
+    (* reverse order *)
+    |> set "source" x.source
+    |> set "caption" x.caption
+    |> set "filename" (Some x.filename)
+    |> fun l -> `O l
+
+  let image_of_yaml x =
+    match x with
+    | `O l ->
+      let get k =
+        List.assoc_opt k l
+        |> Option.map (function `String x -> Some x | _ -> None)
+        |> Option.join
+      in
+      ( match get "filename" with
+        | None -> None
+        | Some filename ->
+          Some { caption = get "caption"
+               ; source = get "source"
+               ; filename
+               }
+      )
+    | _ -> None
+
   type meta =
     { title: string option
     ; lead: string option
     ; date: string option
     ; place: string option
-    ; source: Yaml.value option (* used to preserve unknown yaml *)
+    ; gallery: image list
+    ; foreign: Yaml.value option (* used to preserve unknown yaml *)
     }
-
-  type t =
-    { head: meta
-    ; body: string
-    }
-
-  let update ~was is =
-    let head = { is.head with source = was.head.source } in
-    { is with head }
 
   let meta_to_yaml m : Yaml.value =
     let set k v kv =
@@ -26,11 +58,17 @@ module Post = struct
       | Some s -> (k, `String s) :: kv
       | None -> kv
     in
-    ( match m.source with
+    ( match m.foreign with
       | Some (`O x) -> x
       | _ -> []
     )
     (* reverse order *)
+    |> List.remove_assoc "gallery"
+    |> (fun kv ->
+        match m.gallery with
+        | [] -> kv
+        | l -> ("gallery", `A (List.map image_to_yaml l)) :: kv
+      )
     |> set "place" m.place
     |> set "date" m.date
     |> set "lead" m.lead
@@ -44,14 +82,28 @@ module Post = struct
         List.assoc_opt k l
         |> Option.map (function `String x -> Some x | _ -> None)
         |> Option.join
+      and gallery =
+        match List.assoc_opt "gallery" l with
+        | Some (`A l) -> List.filter_map image_of_yaml l
+        | _ -> []
       in
       Some { title = get "title"
            ; lead = get "lead"
            ; date = get "date"
            ; place = get "place"
-           ; source = Some m
+           ; gallery
+           ; foreign = Some m
            }
     | _ -> None
+
+  type t =
+    { head: meta
+    ; body: string
+    }
+
+  let update ~was is =
+    let head = { is.head with foreign = was.head.foreign } in
+    { is with head }
 
   let to_string t =
     Format.asprintf "---\n%a---\n%s"
@@ -64,7 +116,8 @@ module Post = struct
     ; lead = None
     ; date = None
     ; place = None
-    ; source = None
+    ; gallery = []
+    ; foreign = None
     }
 
   let empty : t = { head = empty_meta; body= "" }
@@ -90,7 +143,11 @@ module Post = struct
           ; lead = Some "This is my very first post"
           ; date = Some "2021-02-22"
           ; place = Some "Innsbruck"
-          ; source = None
+          ; gallery =
+              [ image ~caption:"Bild 1" ~source:"CC0" "image1.jpg"
+              ; image ~caption:"Bild 2" ~source:"CC-BY" "image2.jpg"
+              ]
+          ; foreign = None
           }
       ; body = {|I'm too lazy to produce a long text here.
 Good news is, I don't have to.
@@ -107,6 +164,13 @@ The End.|} }
         lead: This is my very first post
         date: 2021-02-22
         place: Innsbruck
+        gallery:
+        - filename: image1.jpg
+          caption: Bild 1
+          source: CC0
+        - filename: image2.jpg
+          caption: Bild 2
+          source: CC-BY
         ---
         I'm too lazy to produce a long text here.
         Good news is, I don't have to.
@@ -166,7 +230,20 @@ let get_post (year, id) =
         else Lwt.return None
       )
   in
-  post, files
+  let open Post in
+  (* gallery 1:1 files *)
+  let gallery =
+    List.filter
+      (fun x -> List.mem x.filename files)
+      post.head.gallery
+  in
+  let missing =
+    List.filter
+      (fun f -> List.exists (fun x -> x.filename = f) gallery |> not)
+      files
+    |> List.map image
+  in
+  { post with head = { post.head with gallery = gallery @ missing } }
 
 let get_attachment (year, id) filename =
   let open Git_store in
@@ -203,6 +280,8 @@ let post_key =
     year, month ^ "_" ^ title
 
 let save_post ~author ~files (oyear, oid) post =
+  (* TODO: ensure post.head.gallery consistency (files exists) on save
+     similar to get_post. *)
   let (year, id) as nkey = post_key post in
   let info =
     "Post speichern: " ^ year ^ "/" ^ id
