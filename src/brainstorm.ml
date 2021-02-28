@@ -53,10 +53,13 @@ module View = struct
         | None -> a
         | Some x -> a_value x :: a
       in
-    div
-      [ label ~a:[a_label_for id] [txt lbl]
-      ; input ~a ()
-      ]
+      match typ with
+      | `Hidden -> input ~a ()
+      | _ ->
+        div
+          [ label ~a:[a_label_for id] [txt lbl]
+          ; input ~a ()
+          ]
     in
     let+ post = Data.get_post key in
     let name = fst key ^ "/" ^ snd key in
@@ -72,8 +75,10 @@ module View = struct
                  ]
              ; textarea ~a:[a_id "pbody"; a_name "body"] (txt post.body)
              ; fieldset (
-                 List.map
-                   ( fun x ->
+                 List.mapi
+                   ( fun i x ->
+                       let i = Int.to_string i in
+                       let action s = "?" ^ s ^ "=" ^ i in
                        let open Data.Post in
                        let id_prefix = hex_hash x.filename in
                        let input' var =
@@ -82,19 +87,25 @@ module View = struct
                        in
                        fieldset
                          [ img
-                           ~a:[a_style "max-width: 20rem"]
-                           ~src:(Location.attachment key x.filename)
-                           ~alt:(Option.value ~default:"" x.caption)
-                           ()
+                             ~a:[ a_style "max-width: 20rem"
+                                ; a_title x.filename
+                                ]
+                             ~src:(Location.attachment key x.filename)
+                             ~alt:(Option.value ~default:"" x.caption)
+                             ()
                          ; input' "caption" "Titel" `Text x.caption
                          ; input' "source" "Quelle" `Text x.source
                          ; input' "filename" "" `Hidden (Some x.filename)
+                         ; input' "position" "" `Hidden (Some i)
+                         ; button ~a:[a_formaction (action "up")] [txt "Hoch"]
+                         ; button ~a:[a_formaction (action "down")] [txt "Runter"]
+                         ; button ~a:[a_formaction (action "delete")] [txt "Löschen"]
                          ]
 
                    ) post.head.gallery
                )
              ; fieldset
-                 [ input ~a:[ a_input_type `File; a_name "pupload"
+                 [ input ~a:[ a_input_type `File; a_name "upload"
                             ; a_multiple () ; a_accept ["image/*"]
                             ] ()
                  ]
@@ -290,6 +301,10 @@ let () =
       View.post key >|= Response.of_html
     )
   |> App.post (Location.post (":a", ":b")) (fun req ->
+      (* TODO: handle ?up/down/delete=i parameters
+         probably save_post should delete all files that are neither
+         in gallery nor fresh
+      *)
       let key = Router.(param req "a", param req "b") in
       let files = Hashtbl.create ~random:true 5 in
       let callback ~name:_ ~filename data =
@@ -328,11 +343,19 @@ let () =
         |> List.map (fun (id, filename) ->
             let field k = field ("gallery-" ^ id ^ "-" ^ k) in
             let open Data.Post in
-            { caption = field "caption"
-            ; source = field "source"
-            ; filename
-            }
+            let image =
+              { caption = field "caption"
+              ; source = field "source"
+              ; filename
+              }
+            and position =
+              field "position" |> Option.map int_of_string_opt
+              |> Option.join |> Option.value ~default:0
+            in
+            position, image
           )
+        |> List.sort (fun (a,_) (b,_) -> Int.compare a b)
+        |> List.map snd
       in
       let post : Data.Post.t =
         { head = { title; lead; date; place; gallery; foreign=None }
