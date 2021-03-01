@@ -17,9 +17,41 @@ end
 module View = struct
   open Tyxml.Html
 
+  module S = struct
+    (* each constant is a list of tailwind class names *)
+
+    let (!) = String.split_on_char ' '
+    let (+) a b = a @ (! b)
+
+    let _pill =
+      ! "px-4 py-1 text-sm font-semibold rounded-full"
+      + "focus:outline-none focus:ring-2"
+      + "focus:ring-blue-600 focus:ring-offset-2"
+
+    let pill =
+      _pill
+      + "text-blue-600 border border-blue-200"
+      + "hover:text-white hover:bg-blue-600 hover:border-transparent"
+
+    let active_pill =
+      _pill
+      + "text-white bg-blue-600"
+
+    let btn =
+      ! "py-2 px-4 font-semibold rounded-lg shadow-md text-white"
+      + "bg-green-500 hover:bg-green-700"
+  end
+
   let page content =
-    (html (head (title (txt "Brainstorm")) [])
-       (body content))
+    (html
+       (head (title (txt "Brainstorm"))
+          [ meta ~a:[ a_charset "UTF-8" ] ()
+          ; meta ~a:[ a_name "viewport"
+                    ; a_content "width=device-width, initial-scale=1.0"
+                    ] ()
+          ; link ~href:"/tailwind.css" ~rel:[`Stylesheet] ()
+          ])
+       (body (script (txt "0") :: content)))
 
   let post_years () =
     let+ years = Data.get_post_years () in
@@ -30,8 +62,15 @@ module View = struct
          ]
 
   let posts ~year =
-    let+ posts = Data.get_posts ~year in
-    page [ h1 [txt ("Posts " ^ year)]
+    let+ years =
+      Data.get_post_years ()
+      >|= List.map (fun y ->
+          let cls = if y = year then S.active_pill else S.pill in
+          a ~a:[ a_class cls; a_href (Location.year y) ] [ txt y ]
+        )
+      >|= div
+    and+ posts = Data.get_posts ~year in
+    page [ years
          ; ul ( List.map (fun (key, _) ->
                let loc = Location.post key in
                li [a ~a:[a_href loc] [txt loc]]) posts)
@@ -289,6 +328,7 @@ let author req =
 let () =
   App.empty
   |> App.middleware Auth.middleware
+  |> App.middleware (Middleware.static_unix ~local_path:"static" ())
   |> App.get Location.root (fun _req ->
       View.post_years () >|= Response.of_html
     )
