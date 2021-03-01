@@ -281,8 +281,7 @@ let post_key =
     year, month ^ "_" ^ title
 
 let save_post ~author ~files (oyear, oid) post =
-  (* TODO: ensure post.head.gallery consistency (files exists) on save
-     similar to get_post. *)
+  (* TODO: compress images on first save *)
   let (year, id) as nkey = post_key post in
   let info =
     "Post speichern: " ^ year ^ "/" ^ id
@@ -316,8 +315,18 @@ let save_post ~author ~files (oyear, oid) post =
         add t [year; id; "index.md"] (Post.to_string post)
       in
       let* t =
-        (* TODO: remove files not mentioned in gallery *)
-        Lwt.return t
+        (* remove files not mentioned in gallery *)
+        let keep =
+          let open Post in
+          "index.md" :: List.map (fun x -> x.filename) post.head.gallery
+        in
+        list t [year; id] >>=
+        Lwt_list.fold_left_s (fun acc (step, _) ->
+            if List.mem step keep then
+              Lwt.return acc
+            else
+              remove acc [year; id; step]
+          ) t
       in
       let* t =
         (* add new files *)
