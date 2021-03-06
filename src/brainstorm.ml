@@ -9,37 +9,47 @@ let trim_opt s =
 
 module Location = struct
   let root = "/"
-  let year y = root ^ "posts/" ^ y
-  let post (y, id) = year y ^ "/" ^ id
-  let attachment key file = post key ^ "/" ^ file
+  let year y = root ^ "posts/" ^ y ^ "/"
+  let post (y, id) = year y ^ id ^ "/"
+  let attachment key file = post key ^ file
 end
 
 module View = struct
   open Tyxml.Html
 
-  module S = struct
-    (* each constant is a list of tailwind class names *)
+  module BS = struct
+    let input ~id ~name ~lbl typ value =
+      let id = id name in
+      let a = [ a_id id
+              ; a_name name
+              ; a_input_type typ
+              ; a_class ["form-control"]
+              ]
+      in
+      let a = match value with
+        | None -> a
+        | Some x -> a_value x :: a
+      in
+      match typ with
+      | `Hidden -> input ~a ()
+      | _ ->
+        div ~a:[a_class ["form-group"]]
+          [ label ~a:[a_label_for id] [txt lbl]
+          ; input ~a ()
+          ]
 
-    let (!) = String.split_on_char ' '
-    let (+) a b = a @ (! b)
-
-    let _pill =
-      ! "px-4 py-1 text-sm font-semibold rounded-full"
-      + "focus:outline-none focus:ring-2"
-      + "focus:ring-blue-600 focus:ring-offset-2"
-
-    let pill =
-      _pill
-      + "text-blue-600 border border-blue-200"
-      + "hover:text-white hover:bg-blue-600 hover:border-transparent"
-
-    let active_pill =
-      _pill
-      + "text-white bg-blue-600"
-
-    let btn =
-      ! "py-2 px-4 font-semibold rounded-lg shadow-md text-white"
-      + "bg-green-500 hover:bg-green-700"
+    let textarea ~id ~name ~lbl ~rows content =
+      let id = id name
+      and content = Option.value ~default:"" content in
+      div ~a:[a_class ["form-group"]]
+        [ label ~a:[a_label_for id ] [txt lbl]
+        ; textarea ~a:[ a_id id
+                      ; a_rows rows
+                      ; a_name name
+                      ; a_class ["form-control"]
+                      ]
+            (txt content)
+        ]
   end
 
   let page content =
@@ -49,9 +59,12 @@ module View = struct
           ; meta ~a:[ a_name "viewport"
                     ; a_content "width=device-width, initial-scale=1.0"
                     ] ()
-          ; link ~href:"/tailwind.css" ~rel:[`Stylesheet] ()
+          ; link ~href:"/bootstrap.min.css" ~rel:[`Stylesheet] ()
+          ; link ~href:"/app.css" ~rel:[`Stylesheet] ()
           ])
-       (body (script (txt "0") :: content)))
+       (body ([ script (txt "0")
+              ; div ~a:[a_class ["container"; "mb-3"; "mt-3"]] content
+              ])))
 
   let post_years () =
     let+ years = Data.get_post_years () in
@@ -63,95 +76,108 @@ module View = struct
 
   let posts ~year =
     let+ years =
+      let cls = ["badge"; "badge-pill"] in
       Data.get_post_years ()
+      >|= List.sort compare
       >|= List.map (fun y ->
-          let cls = if y = year then S.active_pill else S.pill in
-          a ~a:[ a_class cls; a_href (Location.year y) ] [ txt y ]
+          let cls = if y = year then "badge-secondary" :: cls else "badge-light" :: cls in
+          li ~a:[a_class ["list-inline-item"; "h4"]]
+            [a ~a:[ a_class cls; a_href (Location.year y) ] [ txt y ]]
         )
-      >|= div
+      >|= ul ~a:[a_class ["list-inline"]]
     and+ posts = Data.get_posts ~year in
     page [ years
          ; ul ( List.map (fun (key, _) ->
                let loc = Location.post key in
                li [a ~a:[a_href loc] [txt loc]]) posts)
-         ; p [a ~a:[a_href Location.root] [txt "Home"]]
          ]
 
   let hex_hash (type a) (x: a) : string =
     Hashtbl.hash x |> Printf.sprintf "%x"
 
   let post key =
-    let field_id =
+    let id =
       let prefix = hex_hash key in
       fun x -> "post-" ^ prefix ^ "-" ^ x
     in
-    let input' var lbl typ v =
-      let id = field_id var in
-      let a = [a_id id; a_name var; a_input_type typ] in
-      let a = match v with
-        | None -> a
-        | Some x -> a_value x :: a
-      in
-      match typ with
-      | `Hidden -> input ~a ()
-      | _ ->
-        div
-          [ label ~a:[a_label_for id] [txt lbl]
-          ; input ~a ()
-          ]
-    in
+    let input' name lbl typ v = BS.input ~id ~name ~lbl typ v in
     let+ post = Data.get_post key in
     let name = fst key ^ "/" ^ snd key in
-    page [ h1 [txt ("Post " ^ name)]
+    page [ h1 ~a:[a_class ["h3"]] [txt ("Post " ^ name)]
          ; form ~a:[ a_method `Post
                    ; a_enctype "multipart/form-data"
                    ]
-             [ fieldset
-                 [ input' "title" "Titel"      `Text post.head.title
-                 ; input' "lead"  "Untertitel" `Text post.head.lead
-                 ; input' "place" "Ort"        `Text post.head.place
-                 ; input' "date"  "Datum"      `Date post.head.date
-                 ]
-             ; textarea ~a:[a_id "pbody"; a_name "body"] (txt post.body)
-             ; fieldset (
-                 List.mapi
-                   ( fun i x ->
-                       let i = Int.to_string i in
-                       let action s = "?" ^ s ^ "=" ^ i in
-                       let open Data.Post in
-                       let id_prefix = hex_hash x.filename in
-                       let input' var =
-                         input'
-                           ("gallery" ^ "-" ^ id_prefix ^ "-" ^ var)
-                       in
-                       fieldset
+             [ input' "title" "Titel"      `Text post.head.title
+             ; input' "lead"  "Untertitel" `Text post.head.lead
+             ; input' "place" "Ort"        `Text post.head.place
+             ; input' "date"  "Datum"      `Date post.head.date
+             ; BS.textarea ~id ~name:"body" ~lbl:"Beitrag" ~rows:20
+                 ( Some post.body )
+             ; List.mapi ( fun i x ->
+                   let i = Int.to_string i in
+                   let open Data.Post in
+                   let id_prefix = hex_hash x.filename in
+                   let name' x = ("img" ^ "-" ^ id_prefix ^ "-" ^ x) in
+                   let input' name lbl typ v =
+                     BS.input ~id ~name:(name' name) ~lbl typ v
+                   and action name lbl =
+                     li ~a:[a_class ["list-inline-item"]]
+                       [ button ~a:[ a_formaction ("?" ^ name ^ "=" ^ i)
+                                   ; a_class ["btn"; "btn-light"]
+                                   ] [txt lbl]
+                       ]
+                   in
+                   div ~a:[a_class ["row"]]
+                     [ figure
+                         ~a:[a_class ["col-md-6"; "figure"; "post-image"]]
+                         ~figcaption:(
+                           `Bottom (figcaption ~a:[a_class ["figure-caption"]]
+                                      [txt x.filename]))
                          [ img
-                             ~a:[ a_style "max-width: 20rem"
+                             ~a:[ a_style "width: 100%"
                                 ; a_title x.filename
                                 ]
                              ~src:(Location.attachment key x.filename)
                              ~alt:(Option.value ~default:"" x.caption)
                              ()
-                         ; input' "caption" "Titel" `Text x.caption
+                         ]
+                     ; div ~a:[a_class ["col-md-6"]]
+                         [ BS.textarea ~id ~name:(name' "caption") ~rows:3
+                             ~lbl:"Bildunterschrift" x.caption
                          ; input' "source" "Quelle" `Text x.source
                          ; input' "filename" "" `Hidden (Some x.filename)
                          ; input' "position" "" `Hidden (Some i)
-                         ; button ~a:[a_formaction (action "up")] [txt "Hoch"]
-                         ; button ~a:[a_formaction (action "down")] [txt "Runter"]
-                         ; button ~a:[a_formaction (action "delete")] [txt "Löschen"]
+                         ; ul ~a:[a_class ["list-inline"; "float-right"]]
+                             [ action "up" "🢁"
+                             ; action "down" "🡻"
+                             ; action "delete" "✖"
+                             ]
                          ]
+                     ]
 
                    ) post.head.gallery
-               )
-             ; fieldset
-                 [ input ~a:[ a_input_type `File; a_name "upload"
-                            ; a_multiple () ; a_accept ["image/*"]
-                            ] ()
+               |> List.concat_map (fun f -> [f; hr ()])
+               |> (fun l -> div ( hr () :: l ))
+             ; (let id = id "upload" in
+                div ~a:[a_class ["form-group"]]
+                  [ label ~a:[a_label_for id ] [txt "Bilder hinzufügen"]
+                  ; input ~a:[ a_input_type `File; a_name "upload"
+                             ; a_id id
+                             ; a_multiple () ; a_accept ["image/*"]
+                             ; a_class ["form-control-file"]
+                             ] ()
+                  ])
+             ; div ~a:[a_class ["clearfix"; "pt-3"]]
+                 [ a ~a:[ a_href ".."
+                        ; a_class ["btn"; "btn-secondary"; "float-left"]
+                        ]
+                     [ txt "Zurück zur Übersicht" ]
+                 ; button ~a:[ a_button_type `Submit
+                             ; a_class ["btn"; "btn-primary"; "float-right"]
+                             ]
+                     [ txt "Speichern" ]
                  ]
-             ; button ~a:[ a_button_type `Submit ] [ txt "Speichern" ]
              ]
-         ; p [a ~a:[a_href (Location.year (fst key))] [txt (fst key)]]
-         ; p [a ~a:[a_href Location.root] [txt "Home"]]
          ]
 
   let login ?message () =
@@ -330,7 +356,9 @@ let () =
   |> App.middleware Auth.middleware
   |> App.middleware (Middleware.static_unix ~local_path:"static" ())
   |> App.get Location.root (fun _req ->
-      View.post_years () >|= Response.of_html
+      Data.get_post_years ()
+      >|= List.fold_left (fun a b -> if a > b then a else b) "2020"
+      >|= fun year -> Response.redirect_to (Location.year year)
     )
   |> App.get (Location.year ":a") (fun req ->
       let year = Router.param req "a" in
@@ -373,13 +401,13 @@ let () =
         List.filter_map
           (fun (k, v) ->
              match Astring.String.cuts ~sep:"-" k with
-             | ["gallery"; id; "filename"] -> Some (id, v)
+             | ["img"; id; "filename"] -> Some (id, v)
              | _ -> None
           )
           fields
         |> (* read other fields *)
         List.map (fun (id, filename) ->
-            let field k = field ("gallery-" ^ id ^ "-" ^ k) in
+            let field k = field ("img-" ^ id ^ "-" ^ k) in
             let open Data.Post in
             let image =
               { caption = field "caption"
