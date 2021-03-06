@@ -280,8 +280,29 @@ let post_key =
     in
     year, month ^ "_" ^ title
 
-let save_post ~author ~files (oyear, oid) post =
-  (* TODO: compress images on first save *)
+let compressed_jpeg data =
+  let command = Lwt_process.shell
+      {|convert - \
+          -filter Triangle \
+          -define filter:support=2 \
+          -thumbnail 1920 \
+          -unsharp 0.25x0.25+8+0.065 \
+          -dither None \
+          -posterize 136 \
+          -quality 82 \
+          -define jpeg:fancy-upsampling=off \
+          -interlace none \
+          -colorspace sRGB \
+          -strip \
+          jpg:-|}
+  in
+  let+ data' = Lwt_process.pmap command data in
+  let n = String.length data |> float_of_int
+  and n' = String.length data' |> float_of_int
+  in
+  if n' /. n < 0.8 then data' else data
+
+let save_post ~author ~jpegs (oyear, oid) post =
   let (year, id) as nkey = post_key post in
   let info =
     "Post speichern: " ^ year ^ "/" ^ id
@@ -330,12 +351,17 @@ let save_post ~author ~files (oyear, oid) post =
       in
       let* t =
         (* add new files *)
+        Lwt_list.map_p (fun (filename, data) ->
+          let+ data = compressed_jpeg data in
+          (filename, data)
+          ) jpegs
+        >>=
         Lwt_list.fold_left_s (fun t (filename, data) ->
             if filename = "index.md" then
               Lwt.return t
             else
               add t [year; id; filename] data
-          ) t files
+          ) t
       in
       Lwt.return (Some t)
     )

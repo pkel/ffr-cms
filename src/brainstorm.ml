@@ -161,9 +161,11 @@ module View = struct
              ; (let id = id "upload" in
                 div ~a:[a_class ["form-group"]]
                   [ label ~a:[a_label_for id ] [txt "Bilder hinzufügen"]
-                  ; input ~a:[ a_input_type `File; a_name "upload"
+                  ; input ~a:[ a_input_type `File
+                             ; a_name "upload"
                              ; a_id id
-                             ; a_multiple () ; a_accept ["image/*"]
+                             ; a_multiple ()
+                             ; a_accept ["image/jpeg"]
                              ; a_class ["form-control-file"]
                              ] ()
                   ])
@@ -379,7 +381,7 @@ let () =
         Lwt.return ()
       in
       let* fields = Request.to_multipart_form_data_exn ~callback req in
-      let* files =
+      let* jpegs =
         Lwt_list.map_p (fun (fname, parts) ->
             let () = Logs.info
                 (fun m -> m "File upload: %s" (Location.attachment key fname))
@@ -472,7 +474,7 @@ let () =
         ; body }
       and author = author req
       in
-      Data.save_post ~author ~files key post >|= function
+      Data.save_post ~author ~jpegs key post >|= function
       | Ok key' ->
         Response.redirect_to (Location.post key')
       | _ -> (* TODO communicate error *)
