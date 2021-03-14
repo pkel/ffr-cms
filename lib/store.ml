@@ -101,7 +101,7 @@ let compressed_jpeg data =
       {|convert - \
           -filter Triangle \
           -define filter:support=2 \
-          -thumbnail 1920 \
+          -thumbnail 720 \
           -unsharp 0.25x0.25+8+0.065 \
           -dither None \
           -posterize 136 \
