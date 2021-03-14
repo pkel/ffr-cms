@@ -137,7 +137,7 @@ let compressed_jpeg data =
   in
   if n' /. n < 0.8 then data' else data
 
-let save_post str ~author ~jpegs (ocategory, oyear, oid) post =
+let save_post str ~author ~jpegs ?key:okey post =
   let (category, year, id) as nkey = post_key post in
   let info =
     "Post speichern: " ^ year ^ "/" ^ id
@@ -151,11 +151,15 @@ let save_post str ~author ~jpegs (ocategory, oyear, oid) post =
         Option.value ~default:empty t
       in
       let* t =
-        (* move to new location *)
-        let* old = get_tree t [ocategory; oyear; oid] in
-        remove t [ocategory; oyear; oid] >>= fun t ->
-        (* TODO: what if new_key != old key, but new_key exists? *)
-        add_tree t [category; year; id] old
+        (* if old key is given, move to new location *)
+        match okey with
+        | None -> Lwt.return t
+        | Some (c, y, i) ->
+          (* move to new location *)
+          let* old = get_tree t [c; y; i] in
+          remove t [c; y; i] >>= fun t ->
+          (* TODO: what if new_key != old key, but new_key exists? *)
+          add_tree t [category; year; id] old
       in
       let* t =
         (* write/update index.md *)

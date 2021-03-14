@@ -27,6 +27,7 @@ let image_of_yaml x =
       List.assoc_opt k l
       |> Option.map (function `String x -> Some x | _ -> None)
       |> Option.join
+      |> Option.map String.trim
     in
     ( match get "filename" with
       | None -> None
@@ -82,6 +83,7 @@ let meta_of_yaml m =
       List.assoc_opt k l
       |> Option.map (function `String x -> Some x | _ -> None)
       |> Option.join
+      |> Option.map String.trim
     and gallery =
       match List.assoc_opt "gallery" l with
       | Some (`A l) -> List.filter_map image_of_yaml l

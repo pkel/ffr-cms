@@ -378,6 +378,7 @@ let author req =
   let user = Auth.user req |> Option.get in
   Printf.sprintf "%s via %s <%s>" user.name app_name user.email
 
+let crlf_regex = Str.regexp "\r\n"
 
 let () =
   let foreach lst f app = List.fold_left (fun app el -> f el app) app lst in
@@ -440,7 +441,10 @@ let () =
               ) (Hashtbl.to_seq files |> List.of_seq)
           in
           let field name =
-            List.assoc_opt name fields |> fun x -> Option.bind x trim_opt
+            List.assoc_opt name fields
+            |> Option.map trim_opt
+            |> Option.join
+            |> Option.map (Str.global_replace crlf_regex "\n")
           in
           let category =
             Option.map (fun c ->
@@ -531,7 +535,7 @@ let () =
           and author = author req
           in
           let* str = Store.master () in
-          Store.save_post str ~author ~jpegs key post
+          Store.save_post str ~author ~jpegs ~key post
           >|= function
           | Ok key' ->
             Response.redirect_to (Location.post key')
