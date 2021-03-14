@@ -1,5 +1,3 @@
-open Lwt.Infix
-open Lwt.Syntax
 open Ffrlib
 
 let trim_opt s =
@@ -9,8 +7,9 @@ let trim_opt s =
 
 module Location = struct
   let root = "/"
-  let year y = root ^ "posts/" ^ y ^ "/"
-  let post (y, id) = year y ^ id ^ "/"
+  let category c = root ^ c ^ "/"
+  let year (c, y) = category c ^ y ^ "/"
+  let post (c, y, id) = year (c, y) ^ id ^ "/"
   let attachment key file = post key ^ file
 end
 
@@ -66,27 +65,28 @@ module View = struct
               ; div ~a:[a_class ["container"; "mb-3"; "mt-3"]] content
               ])))
 
-  let post_years () =
-    let+ years = Store.get_post_years () in
-    page [ h1 [txt "Posts nach Jahr"]
-         ; ul ( List.map (fun year ->
-               let loc = Location.year year in
-               li [a ~a:[a_href loc] [txt loc]]) years)
-         ]
-
-  let posts ~year =
-    let+ years =
+  let posts ~categories ~category ~years ~year posts =
+    let years =
       let cls = ["badge"; "badge-pill"] in
-      Store.get_post_years ()
-      >|= List.sort compare
-      >|= List.map (fun y ->
+      List.sort compare years
+      |> List.map (fun y ->
           let cls = if y = year then "badge-secondary" :: cls else "badge-light" :: cls in
           li ~a:[a_class ["list-inline-item"; "h4"]]
-            [a ~a:[ a_class cls; a_href (Location.year y) ] [ txt y ]]
+            [a ~a:[ a_class cls; a_href (Location.year (category, y)) ] [ txt y ]]
         )
-      >|= ul ~a:[a_class ["list-inline"]]
-    and+ posts = Store.get_posts ~year in
-    page [ years
+      |> ul ~a:[a_class ["list-inline"]]
+    and categories =
+      let cls = ["badge"; "badge-pill"] in
+      List.sort compare categories
+      |> List.map (fun c ->
+          let cls = if c = category then "badge-secondary" :: cls else "badge-light" :: cls in
+          li ~a:[a_class ["list-inline-item"; "h4"]]
+            [a ~a:[ a_class cls; a_href (Location.year (c, year)) ] [ txt c ]]
+        )
+      |> ul ~a:[a_class ["list-inline"]]
+    in
+    page [ categories
+         ; years
          ; ul ( List.map (fun (key, _) ->
                let loc = Location.post key in
                li [a ~a:[a_href loc] [txt loc]]) posts)
@@ -95,19 +95,20 @@ module View = struct
   let hex_hash (type a) (x: a) : string =
     Hashtbl.hash x |> Printf.sprintf "%x"
 
-  let post key =
+  let post key post =
+    let open Post in
     let id =
       let prefix = hex_hash key in
       fun x -> "post-" ^ prefix ^ "-" ^ x
     in
     let input' name lbl typ v = BS.input ~id ~name ~lbl typ v in
-    let+ post = Store.get_post key in
-    let name = fst key ^ "/" ^ snd key in
+    let name = Location.post key in
     page [ h1 ~a:[a_class ["h3"]] [txt ("Post " ^ name)]
          ; form ~a:[ a_method `Post
                    ; a_enctype "multipart/form-data"
                    ]
-             [ input' "title" "Titel"      `Text post.head.title
+             [ input' "category" "Rubrik"  `Hidden post.head.category
+             ; input' "title" "Titel"      `Text post.head.title
              ; input' "lead"  "Untertitel" `Text post.head.lead
              ; input' "place" "Ort"        `Text post.head.place
              ; input' "date"  "Datum"      `Date post.head.date
@@ -200,9 +201,10 @@ module View = struct
            | None -> []
            | Some m -> [p [ txt m ]]
          )
-    |> Lwt.return
 end
 
+open Lwt.Infix
+open Lwt.Syntax
 open Opium
 
 module Auth = struct
@@ -303,7 +305,8 @@ module Auth = struct
       |> Lwt.return
     with _ ->
       View.login ~message:"login failed" ()
-      >|= Response.of_html
+      |> Response.of_html
+      |> Lwt.return
 
   let dbm_mem dbm key =
     match Dbm.find dbm key with
@@ -339,7 +342,7 @@ module Auth = struct
           post_login req
         | `GET ->
           (* show login form *)
-          View.login () >|= Response.of_html
+          View.login () |> Response.of_html |> Lwt.return
         | _ ->
           (* redirect get *)
           Response.redirect_to req.target |> Lwt.return
@@ -358,20 +361,43 @@ let () =
   |> App.middleware Auth.middleware
   |> App.middleware (Middleware.static_unix ~local_path:"static" ())
   |> App.get Location.root (fun _req ->
-      Store.get_post_years ()
-      >|= List.fold_left (fun a b -> if a > b then a else b) "2020"
-      >|= fun year -> Response.redirect_to (Location.year year)
+      let* str = Store.master () in
+      let category = Store.category_default in
+      let+ year =
+        Store.get_years str category
+        >|= List.fold_left (fun a b -> if a > b then a else b) "2021"
+      in
+      Response.redirect_to (Location.year (category, year))
     )
-  |> App.get (Location.year ":a") (fun req ->
-      let year = Router.param req "a" in
-      View.posts ~year >|= Response.of_html
+  |> App.get (Location.category ":a") (fun req ->
+      let category = Router.param req "a" in
+      let* str = Store.master () in
+      let+ year =
+        Store.get_years str category
+        >|= List.fold_left (fun a b -> if a > b then a else b) "2021"
+      in
+      Response.redirect_to (Location.year (category, year))
     )
-  |> App.get (Location.post (":a", ":b")) (fun req ->
-      let key = Router.(param req "a", param req "b") in
-      View.post key >|= Response.of_html
+  |> App.get (Location.year (":a", ":b")) (fun req ->
+      let category = Router.param req "a" in
+      let year = Router.param req "b" in
+      let* str = Store.master () in
+      let+ years = Store.get_years str category
+      and+ posts = Store.get_posts str (category, year)
+      in
+      let categories = Store.categories in
+      View.posts ~categories ~category ~years ~year posts |> Response.of_html
     )
-  |> App.post (Location.post (":a", ":b")) (fun req ->
-      let key = Router.(param req "a", param req "b") in
+  |> App.get (Location.post (":a", ":b", ":c")) (fun req ->
+      let key = Router.(param req "a", param req "b", param req "c") in
+      Store.master ()
+      >>= fun str -> Store.get_post str key
+      >|= function
+      | None -> Response.of_plain_text ~status:(`Code 404) "not found"
+      | Some post -> View.post key post |> Response.of_html
+    )
+  |> App.post (Location.post (":a", ":b", ":c")) (fun req ->
+      let key = Router.(param req "a", param req "b", param req "c") in
       let files = Hashtbl.create ~random:true 5 in
       let callback ~name:_ ~filename data =
         if filename <> "" then (
@@ -392,7 +418,8 @@ let () =
       let field name =
         List.assoc_opt name fields |> fun x -> Option.bind x trim_opt
       in
-      let title = field "title"
+      let category = field "category"
+      and title = field "title"
       and lead = field "lead"
       (* TODO: Properly parse this date. input validation. see RFC 3339 *)
       and date = field "date"
@@ -464,7 +491,8 @@ let () =
         List.map snd
       in
       let post : Post.t =
-        { head = { title
+        { head = { category
+                 ; title
                  ; lead
                  ; date
                  ; place
@@ -474,17 +502,21 @@ let () =
         ; body }
       and author = author req
       in
-      Store.save_post ~author ~jpegs key post >|= function
+      let* str = Store.master () in
+      Store.save_post str ~author ~jpegs key post
+      >|= function
       | Ok key' ->
         Response.redirect_to (Location.post key')
       | _ -> (* TODO communicate error *)
         Response.redirect_to (Location.post key)
     )
-  |> App.get (Location.attachment (":a", ":b") ":c") (fun req ->
-      let key = Router.(param req "a", param req "b")
-      and fname = Router.param req "c"
+  |> App.get (Location.attachment (":a", ":b", ":c") ":d") (fun req ->
+      let key = Router.(param req "a", param req "b", param req "c")
+      and fname = Router.param req "d"
       in
-      Store.get_attachment key fname >|= function
+      let* str = Store.master () in
+      Store.get_attachment str key fname
+      >|= function
       | None -> Response.of_plain_text ~status:(`Code 404) "not found"
       | Some data ->
         let headers =

@@ -183,5 +183,5 @@ cd "$workdir"
 
 category=einsaetze
 scrape "uebersicht_pm_smarty.php/?Category=1001100"
-category=neuigkeiten
+category=neues
 scrape "uebersicht_pm_smarty.php/?Category=1001200"
