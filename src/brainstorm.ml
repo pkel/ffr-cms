@@ -17,6 +17,27 @@ module View = struct
   open Tyxml.Html
 
   module BS = struct
+    let select ~id ~name ~lbl options value =
+      let id = id name in
+      let a = [ a_id id
+              ; a_name name
+              ; a_class ["form-control"]
+              ]
+      in
+      div ~a:[a_class ["form-group"]]
+        [ label ~a:[a_label_for id] [txt lbl]
+        ; select ~a
+            ( List.map (fun (k, v) ->
+                  let a =
+                    if Some k = value
+                    then [a_selected (); a_value k]
+                    else [a_value k]
+                  in
+                  option ~a (txt v)
+                ) options
+            )
+        ]
+
     let input ~id ~name ~lbl typ value =
       let id = id name in
       let a = [ a_id id
@@ -106,7 +127,8 @@ module View = struct
          ; form ~a:[ a_method `Post
                    ; a_enctype "multipart/form-data"
                    ]
-             [ input' "category" "Rubrik"  `Hidden post.head.category
+             [ BS.select ~id ~name:"category" ~lbl:"Rubrik"
+                 Config.categories post.head.category
              ; input' "title" "Titel"      `Text post.head.title
              ; input' "lead"  "Untertitel" `Text post.head.lead
              ; input' "place" "Ort"        `Text post.head.place
