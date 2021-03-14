@@ -1,21 +1,12 @@
 open Lwt.Infix
 open Lwt.Syntax
 
-(* config *)
-
-let repo = "./_db"
-let root = []
-let category_default = "einsaetze"
-let categories = ["einsaetze"; "neues"]
-
-(* end config *)
-
 module Git_store = Irmin_unix.Git.FS.KV(Irmin.Contents.String)
 
-let git_config = Irmin_git.config repo
+let git_config = Irmin_git.config Config.repo
 
 let absolute =
-  let rev_root = List.rev root in
+  let rev_root = List.rev Config.root in
   fun path -> List.fold_left (fun acc el -> el :: acc) path rev_root
 
 let master () =
@@ -54,6 +45,7 @@ let get_posts str (category, year) =
 
 let get_post str (category, year, id) =
   let open Git_store in
+  let categories = List.map fst Config.categories in
   let* opt = find str (absolute [category; year; id; "index.md"]) in
   (* restrict post read access to directories listed in [categories] *)
   match List.mem category categories, opt with
@@ -113,7 +105,9 @@ let escape =
 
 let post_key (post : Post.t) =
     let title = Option.value ~default:"" post.head.title
-    and category = Option.value ~default:category_default post.head.category
+    and category =
+      let default = Config.category_default in
+      Option.value ~default post.head.category
     and year, month =
       let date = Option.value ~default:"0000-00-00" post.head.date in
       (* TODO: Properly parse this date / input validation *)
@@ -152,7 +146,7 @@ let save_post str ~author ~jpegs (ocategory, oyear, oid) post =
     |> info ~author
   in
   let open Git_store in
-  with_tree ~info str root (fun t ->
+  with_tree ~info str Config.root (fun t ->
       let open Tree in
       let t =
         (* posts dir might not exists *)

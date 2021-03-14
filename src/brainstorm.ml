@@ -77,12 +77,11 @@ module View = struct
       |> ul ~a:[a_class ["list-inline"]]
     and categories =
       let cls = ["badge"; "badge-pill"] in
-      List.sort compare categories
-      |> List.map (fun c ->
+      List.map (fun (c, l) ->
           let cls = if c = category then "badge-secondary" :: cls else "badge-light" :: cls in
           li ~a:[a_class ["list-inline-item"; "h4"]]
-            [a ~a:[ a_class cls; a_href (Location.year (c, year)) ] [ txt c ]]
-        )
+            [a ~a:[ a_class cls; a_href (Location.year (c, year)) ] [ txt l ]]
+        ) categories
       |> ul ~a:[a_class ["list-inline"]]
     in
     page [ categories
@@ -362,7 +361,7 @@ let () =
   |> App.middleware (Middleware.static_unix ~local_path:"static" ())
   |> App.get Location.root (fun _req ->
       let* str = Store.master () in
-      let category = Store.category_default in
+      let category = Config.category_default in
       let+ year =
         Store.get_years str category
         >|= List.fold_left (fun a b -> if a > b then a else b) "2021"
@@ -385,7 +384,7 @@ let () =
       let+ years = Store.get_years str category
       and+ posts = Store.get_posts str (category, year)
       in
-      let categories = Store.categories in
+      let categories = Config.categories in
       View.posts ~categories ~category ~years ~year posts |> Response.of_html
     )
   |> App.get (Location.post (":a", ":b", ":c")) (fun req ->
