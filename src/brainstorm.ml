@@ -107,9 +107,29 @@ module View = struct
     in
     page [ categories
          ; years
-         ; ul ( List.map (fun (key, _) ->
-               let loc = Location.post key in
-               li [a ~a:[a_href loc] [txt loc]]) posts)
+         ; div ~a:[a_class ["list-group"]]
+             ( List.map (fun (key, post) ->
+                   let open Post in
+                   let loc = Location.post key in
+                   let date_place =
+                     Printf.sprintf "%s -- %s"
+                       (Option.value ~default:"" post.head.date) (* TODO pp date *)
+                       (Option.value ~default:"" post.head.place)
+                   and title =
+                     Option.value ~default:"Kein Titel" post.head.title
+                   in
+                   let entry =
+                     [ Some (p ~a:[a_class ["h5"]] [ txt title ])
+                     ; Option.map (fun l -> p [txt l]) post.head.lead
+                     ; Some (txt date_place)
+                     ]
+                     |> List.filter_map (fun x -> x)
+                   in
+                   a ~a:[ a_href loc
+                        ; a_class [ "list-group-item"
+                                  ; "list-group-item-action"
+                                  ]
+                        ] entry ) posts)
          ]
 
   let hex_hash (type a) (x: a) : string =
@@ -122,8 +142,7 @@ module View = struct
       fun x -> "post-" ^ prefix ^ "-" ^ x
     in
     let input' name lbl typ v = BS.input ~id ~name ~lbl typ v in
-    let name = Location.post key in
-    page [ h1 ~a:[a_class ["h3"]] [txt ("Post " ^ name)]
+    page [ h1 ~a:[a_class ["h3"]] [txt "Eintrag Bearbeiten"]
          ; form ~a:[ a_method `Post
                    ; a_enctype "multipart/form-data"
                    ]
