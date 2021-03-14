@@ -155,7 +155,7 @@ module View = struct
                          ]
                      ]
 
-                   ) post.head.gallery
+                 ) post.head.gallery
                |> List.concat_map (fun f -> [f; hr ()])
                |> (fun l -> div ( hr () :: l ))
              ; (let id = id "upload" in
@@ -355,7 +355,9 @@ let author req =
   let user = Auth.user req |> Option.get in
   Printf.sprintf "%s via %s <%s>" user.name app_name user.email
 
+
 let () =
+  let foreach lst f app = List.fold_left (fun app el -> f el app) app lst in
   App.empty
   |> App.middleware Auth.middleware
   |> App.middleware (Middleware.static_unix ~local_path:"static" ())
@@ -368,161 +370,166 @@ let () =
       in
       Response.redirect_to (Location.year (category, year))
     )
-  |> App.get (Location.category ":a") (fun req ->
-      let category = Router.param req "a" in
-      let* str = Store.master () in
-      let+ year =
-        Store.get_years str category
-        >|= List.fold_left (fun a b -> if a > b then a else b) "2021"
-      in
-      Response.redirect_to (Location.year (category, year))
-    )
-  |> App.get (Location.year (":a", ":b")) (fun req ->
-      let category = Router.param req "a" in
-      let year = Router.param req "b" in
-      let* str = Store.master () in
-      let+ years = Store.get_years str category
-      and+ posts = Store.get_posts str (category, year)
-      in
-      let categories = Config.categories in
-      View.posts ~categories ~category ~years ~year posts |> Response.of_html
-    )
-  |> App.get (Location.post (":a", ":b", ":c")) (fun req ->
-      let key = Router.(param req "a", param req "b", param req "c") in
-      Store.master ()
-      >>= fun str -> Store.get_post str key
-      >|= function
-      | None -> Response.of_plain_text ~status:(`Code 404) "not found"
-      | Some post -> View.post key post |> Response.of_html
-    )
-  |> App.post (Location.post (":a", ":b", ":c")) (fun req ->
-      let key = Router.(param req "a", param req "b", param req "c") in
-      let files = Hashtbl.create ~random:true 5 in
-      let callback ~name:_ ~filename data =
-        if filename <> "" then (
-          let l = Hashtbl.find_opt files filename |> Option.value ~default:[] in
-          Hashtbl.replace files filename (data :: l)
-        );
-        Lwt.return ()
-      in
-      let* fields = Request.to_multipart_form_data_exn ~callback req in
-      let* jpegs =
-        Lwt_list.map_p (fun (fname, parts) ->
-            let () = Logs.info
-                (fun m -> m "File upload: %s" (Location.attachment key fname))
-            in
-            Lwt.return (fname, List.rev parts |> Astring.String.concat)
-          ) (Hashtbl.to_seq files |> List.of_seq)
-      in
-      let field name =
-        List.assoc_opt name fields |> fun x -> Option.bind x trim_opt
-      in
-      let category = field "category"
-      and title = field "title"
-      and lead = field "lead"
-      (* TODO: Properly parse this date. input validation. see RFC 3339 *)
-      and date = field "date"
-      and place = field "place"
-      and body = field "body" |> Option.value ~default:""
-      and gallery =
-        (* get filenames *)
-        List.filter_map
-          (fun (k, v) ->
-             match Astring.String.cuts ~sep:"-" k with
-             | ["img"; id; "filename"] -> Some (id, v)
-             | _ -> None
-          )
-          fields
-        |> (* read other fields *)
-        List.map (fun (id, filename) ->
-            let field k = field ("img-" ^ id ^ "-" ^ k) in
-            let open Post in
-            let image =
-              { caption = field "caption"
-              ; source = field "source"
-              ; filename
-              }
-            and position =
-              field "position" |> Option.map int_of_string_opt
-              |> Option.join |> Option.value ~default:0
-            in
-            position, image
-          )
-        |> (* move gallery item *)
-        ( Request.query "up" req
-          |> Option.map int_of_string_opt
-          |> Option.join
-          |> function
-          | None -> fun x -> x
-          | Some i -> List.map (fun (j, x) ->
-              let j' =
-                if j = i then i - 1
-                else if j = i - 1  then i
-                else j
-              in j', x
+  |> foreach Config.categories (fun (category, _) app ->
+      app
+      |> App.get (Location.category category) (fun _req ->
+          let* str = Store.master () in
+          let+ year =
+            Store.get_years str category
+            >|= List.fold_left (fun a b -> if a > b then a else b) "2021"
+          in
+          Response.redirect_to (Location.year (category, year))
+        )
+      |> App.get (Location.year (category, ":a")) (fun req ->
+          let year = Router.param req "a" in
+          let* str = Store.master () in
+          let+ years = Store.get_years str category
+          and+ posts = Store.get_posts str (category, year)
+          in
+          let categories = Config.categories in
+          View.posts ~categories ~category ~years ~year posts |> Response.of_html
+        )
+      |> App.get (Location.post (category, ":a", ":b")) (fun req ->
+          let key = Router.(category, param req "a", param req "b") in
+          Store.master ()
+          >>= fun str -> Store.get_post str key
+          >|= function
+          | None -> Response.of_plain_text ~status:(`Code 404) "not found"
+          | Some post -> View.post key post |> Response.of_html
+        )
+      |> App.post (Location.post (category, ":a", ":b")) (fun req ->
+          let key = Router.(category, param req "a", param req "b") in
+          let files = Hashtbl.create ~random:true 5 in
+          let callback ~name:_ ~filename data =
+            if filename <> "" then (
+              let l = Hashtbl.find_opt files filename |> Option.value ~default:[] in
+              Hashtbl.replace files filename (data :: l)
+            );
+            Lwt.return ()
+          in
+          let* fields = Request.to_multipart_form_data_exn ~callback req in
+          let* jpegs =
+            Lwt_list.map_p (fun (fname, parts) ->
+                let () = Logs.info
+                    (fun m -> m "File upload: %s" (Location.attachment key fname))
+                in
+                Lwt.return (fname, List.rev parts |> Astring.String.concat)
+              ) (Hashtbl.to_seq files |> List.of_seq)
+          in
+          let field name =
+            List.assoc_opt name fields |> fun x -> Option.bind x trim_opt
+          in
+          let category =
+            Option.map (fun c ->
+                if List.mem_assoc c Config.categories
+                then c else Config.category_default
+              ) (field "category")
+          and title = field "title"
+          and lead = field "lead"
+          (* TODO: Properly parse this date. input validation. see RFC 3339 *)
+          and date = field "date"
+          and place = field "place"
+          and body = field "body" |> Option.value ~default:""
+          and gallery =
+            (* get filenames *)
+            List.filter_map
+              (fun (k, v) ->
+                 match Astring.String.cuts ~sep:"-" k with
+                 | ["img"; id; "filename"] -> Some (id, v)
+                 | _ -> None
+              )
+              fields
+            |> (* read other fields *)
+            List.map (fun (id, filename) ->
+                let field k = field ("img-" ^ id ^ "-" ^ k) in
+                let open Post in
+                let image =
+                  { caption = field "caption"
+                  ; source = field "source"
+                  ; filename
+                  }
+                and position =
+                  field "position" |> Option.map int_of_string_opt
+                  |> Option.join |> Option.value ~default:0
+                in
+                position, image
+              )
+            |> (* move gallery item *)
+            ( Request.query "up" req
+              |> Option.map int_of_string_opt
+              |> Option.join
+              |> function
+              | None -> fun x -> x
+              | Some i -> List.map (fun (j, x) ->
+                  let j' =
+                    if j = i then i - 1
+                    else if j = i - 1  then i
+                    else j
+                  in j', x
+                )
             )
-        )
-        |> (* move gallery item *)
-        ( Request.query "down" req
-          |> Option.map int_of_string_opt
-          |> Option.join
-          |> function
-          | None -> fun x -> x
-          | Some i -> List.map (fun (j, x) ->
-              let j' =
-                if j = i then i + 1
-                else if j = i + 1  then i
-                else j
-              in j', x
+            |> (* move gallery item *)
+            ( Request.query "down" req
+              |> Option.map int_of_string_opt
+              |> Option.join
+              |> function
+              | None -> fun x -> x
+              | Some i -> List.map (fun (j, x) ->
+                  let j' =
+                    if j = i then i + 1
+                    else if j = i + 1  then i
+                    else j
+                  in j', x
+                )
             )
+            |> (* delete gallery entry *)
+            ( Request.query "delete" req
+              |> Option.map int_of_string_opt
+              |> Option.join
+              |> function
+              | None -> fun x -> x
+              | Some i -> List.filter (fun (j, _) -> j <> i)
+            )
+            |> (* sort gallery by position *)
+            List.sort (fun (a,_) (b,_) -> Int.compare a b)
+            |> (* drop position *)
+            List.map snd
+          in
+          let post : Post.t =
+            { head = { category
+                     ; title
+                     ; lead
+                     ; date
+                     ; place
+                     ; gallery
+                     ; foreign = None
+                     }
+            ; body }
+          and author = author req
+          in
+          let* str = Store.master () in
+          Store.save_post str ~author ~jpegs key post
+          >|= function
+          | Ok key' ->
+            Response.redirect_to (Location.post key')
+          | _ -> (* TODO communicate error *)
+            Response.redirect_to (Location.post key)
         )
-        |> (* delete gallery entry *)
-        ( Request.query "delete" req
-          |> Option.map int_of_string_opt
-          |> Option.join
-          |> function
-          | None -> fun x -> x
-          | Some i -> List.filter (fun (j, _) -> j <> i)
+      |> App.get (Location.attachment (category, ":a", ":b") ":d") (fun req ->
+          let key = Router.(category, param req "a", param req "b")
+          and fname = Router.param req "d"
+          in
+          let* str = Store.master () in
+          Store.get_attachment str key fname
+          >|= function
+          | None -> Response.of_plain_text ~status:(`Code 404) "not found"
+          | Some data ->
+            let headers =
+              Headers.of_list
+                [ "Content-Type", Magic_mime.lookup fname ]
+            in
+            Response.of_plain_text ~headers data
         )
-        |> (* sort gallery by position *)
-        List.sort (fun (a,_) (b,_) -> Int.compare a b)
-        |> (* drop position *)
-        List.map snd
-      in
-      let post : Post.t =
-        { head = { category
-                 ; title
-                 ; lead
-                 ; date
-                 ; place
-                 ; gallery
-                 ; foreign = None
-                 }
-        ; body }
-      and author = author req
-      in
-      let* str = Store.master () in
-      Store.save_post str ~author ~jpegs key post
-      >|= function
-      | Ok key' ->
-        Response.redirect_to (Location.post key')
-      | _ -> (* TODO communicate error *)
-        Response.redirect_to (Location.post key)
-    )
-  |> App.get (Location.attachment (":a", ":b", ":c") ":d") (fun req ->
-      let key = Router.(param req "a", param req "b", param req "c")
-      and fname = Router.param req "d"
-      in
-      let* str = Store.master () in
-      Store.get_attachment str key fname
-      >|= function
-      | None -> Response.of_plain_text ~status:(`Code 404) "not found"
-      | Some data ->
-        let headers =
-          Headers.of_list
-            [ "Content-Type", Magic_mime.lookup fname ]
-        in
-        Response.of_plain_text ~headers data
     )
   |> App.run_command
   |> ignore

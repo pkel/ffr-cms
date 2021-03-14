@@ -45,11 +45,9 @@ let get_posts str (category, year) =
 
 let get_post str (category, year, id) =
   let open Git_store in
-  let categories = List.map fst Config.categories in
   let* opt = find str (absolute [category; year; id; "index.md"]) in
-  (* restrict post read access to directories listed in [categories] *)
-  match List.mem category categories, opt with
-  | true, Some x ->
+  match opt with
+  | Some x ->
     let post = Post.of_string x in
     let+ files =
       list str (absolute [category; year; id]) >>=
@@ -78,7 +76,7 @@ let get_post str (category, year, id) =
     in
     Some { post with head = { post.head with gallery = gallery @ missing
                                            ; category } }
-  | _ -> Lwt.return None
+  | None -> Lwt.return None
 
 let get_attachment str (category, year, id) filename =
   let open Git_store in
