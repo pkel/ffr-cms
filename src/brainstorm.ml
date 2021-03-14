@@ -1,6 +1,6 @@
 open Lwt.Infix
 open Lwt.Syntax
-open Bslib
+open Ffrlib
 
 let trim_opt s =
   match String.trim s with
@@ -67,7 +67,7 @@ module View = struct
               ])))
 
   let post_years () =
-    let+ years = Data.get_post_years () in
+    let+ years = Store.get_post_years () in
     page [ h1 [txt "Posts nach Jahr"]
          ; ul ( List.map (fun year ->
                let loc = Location.year year in
@@ -77,7 +77,7 @@ module View = struct
   let posts ~year =
     let+ years =
       let cls = ["badge"; "badge-pill"] in
-      Data.get_post_years ()
+      Store.get_post_years ()
       >|= List.sort compare
       >|= List.map (fun y ->
           let cls = if y = year then "badge-secondary" :: cls else "badge-light" :: cls in
@@ -85,7 +85,7 @@ module View = struct
             [a ~a:[ a_class cls; a_href (Location.year y) ] [ txt y ]]
         )
       >|= ul ~a:[a_class ["list-inline"]]
-    and+ posts = Data.get_posts ~year in
+    and+ posts = Store.get_posts ~year in
     page [ years
          ; ul ( List.map (fun (key, _) ->
                let loc = Location.post key in
@@ -101,7 +101,7 @@ module View = struct
       fun x -> "post-" ^ prefix ^ "-" ^ x
     in
     let input' name lbl typ v = BS.input ~id ~name ~lbl typ v in
-    let+ post = Data.get_post key in
+    let+ post = Store.get_post key in
     let name = fst key ^ "/" ^ snd key in
     page [ h1 ~a:[a_class ["h3"]] [txt ("Post " ^ name)]
          ; form ~a:[ a_method `Post
@@ -115,7 +115,7 @@ module View = struct
                  ( Some post.body )
              ; List.mapi ( fun i x ->
                    let i = Int.to_string i in
-                   let open Data.Post in
+                   let open Post in
                    let id_prefix = hex_hash x.filename in
                    let name' x = ("img" ^ "-" ^ id_prefix ^ "-" ^ x) in
                    let input' name lbl typ v =
@@ -358,7 +358,7 @@ let () =
   |> App.middleware Auth.middleware
   |> App.middleware (Middleware.static_unix ~local_path:"static" ())
   |> App.get Location.root (fun _req ->
-      Data.get_post_years ()
+      Store.get_post_years ()
       >|= List.fold_left (fun a b -> if a > b then a else b) "2020"
       >|= fun year -> Response.redirect_to (Location.year year)
     )
@@ -410,7 +410,7 @@ let () =
         |> (* read other fields *)
         List.map (fun (id, filename) ->
             let field k = field ("img-" ^ id ^ "-" ^ k) in
-            let open Data.Post in
+            let open Post in
             let image =
               { caption = field "caption"
               ; source = field "source"
@@ -463,7 +463,7 @@ let () =
         |> (* drop position *)
         List.map snd
       in
-      let post : Data.Post.t =
+      let post : Post.t =
         { head = { title
                  ; lead
                  ; date
@@ -474,7 +474,7 @@ let () =
         ; body }
       and author = author req
       in
-      Data.save_post ~author ~jpegs key post >|= function
+      Store.save_post ~author ~jpegs key post >|= function
       | Ok key' ->
         Response.redirect_to (Location.post key')
       | _ -> (* TODO communicate error *)
@@ -484,7 +484,7 @@ let () =
       let key = Router.(param req "a", param req "b")
       and fname = Router.param req "c"
       in
-      Data.get_attachment key fname >|= function
+      Store.get_attachment key fname >|= function
       | None -> Response.of_plain_text ~status:(`Code 404) "not found"
       | Some data ->
         let headers =
