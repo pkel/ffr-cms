@@ -169,10 +169,11 @@ module View = struct
                          ; input' "source" "Quelle" `Text x.source
                          ; input' "filename" "" `Hidden (Some x.filename)
                          ; input' "position" "" `Hidden (Some i)
+                         ; ul ~a:[a_class ["list-inline"; "float-left"]]
+                             [ action "delete" "✖" ]
                          ; ul ~a:[a_class ["list-inline"; "float-right"]]
                              [ action "up" "🢁"
                              ; action "down" "🡻"
-                             ; action "delete" "✖"
                              ]
                          ]
                      ]
