@@ -39,7 +39,8 @@ let image_of_yaml x =
   | _ -> None
 
 type meta =
-  { title: string option
+  { category: string option
+  ; title: string option
   ; lead: string option
   ; date: string option
   ; place: string option
@@ -69,10 +70,12 @@ let meta_to_yaml m : Yaml.value =
   |> set "date" m.date
   |> set "lead" m.lead
   |> set "title" m.title
+  |> set "category" m.category
   |> fun l -> `O l
 
 let meta_of_yaml m =
-  (* TODO: investigate: `String "1" roundtrips to `Float 1. *)
+  (* TODO: investigate: `String "1" roundtrips to `Float 1.
+   * This seems to be a fundamental problem in YAML ?! *)
   match m with
   | `O l ->
     let get k =
@@ -84,7 +87,8 @@ let meta_of_yaml m =
       | Some (`A l) -> List.filter_map image_of_yaml l
       | _ -> []
     in
-    Some { title = get "title"
+    Some { category = get "category"
+         ; title = get "title"
          ; lead = get "lead"
          ; date = get "date"
          ; place = get "place"
@@ -109,7 +113,8 @@ let to_string t =
     t.body
 
 let empty_meta : meta =
-  { title = None
+  { category = None
+  ; title = None
   ; lead = None
   ; date = None
   ; place = None
@@ -136,7 +141,8 @@ let of_string x =
 let%test_module _ = (module struct
   let dummy : t =
     { head =
-        { title = Some "Hello World"
+        { category = Some "einsaetze"
+        ; title = Some "Hello World"
         ; lead = Some "This is my very first post"
         ; date = Some "2021-02-22"
         ; place = Some "Innsbruck"
@@ -157,6 +163,7 @@ The End.|} }
     print_endline (to_string dummy);
     [%expect {|
         ---
+        category: einsaetze
         title: Hello World
         lead: This is my very first post
         date: 2021-02-22
