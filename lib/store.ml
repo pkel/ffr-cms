@@ -142,7 +142,7 @@ let compressed_jpeg data =
 let save_post str ~author ~jpegs ?key:okey post =
   let (category, year, id) as nkey = post_key post in
   let info =
-    "Post speichern: " ^ year ^ "/" ^ id
+    "Eintrag speichern: " ^ year ^ "/" ^ id
     |> info ~author
   in
   let open Git_store in
@@ -205,3 +205,12 @@ let save_post str ~author ~jpegs ?key:okey post =
       Lwt.return (Some t)
     )
   >|= Result.map (fun () -> nkey)
+
+let delete_post str ~author key =
+  let category, year, id = key in
+  let info =
+    "Eintrag löschen: " ^ year ^ "/" ^ id
+    |> info ~author
+  in
+  let open Git_store in
+  remove ~info str (absolute [category; year; id])

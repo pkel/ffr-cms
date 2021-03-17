@@ -11,7 +11,8 @@ module Location = struct
   let year (c, y) = category c ^ y ^ "/"
   let post (c, y, id) = year (c, y) ^ id ^ "/"
   let attachment key file = post key ^ file
-  let create_post = "/new"
+  let create_post = root ^ "create"
+  let delete_post (c, y, id) = root ^ "delete/" ^ (String.concat "/" [c;y;id])
 end
 
 module View = struct
@@ -148,7 +149,11 @@ module View = struct
       fun x -> "post-" ^ prefix ^ "-" ^ x
     in
     let input' name lbl typ v = BS.input ~id ~name ~lbl typ v in
-    page [ h1 ~a:[a_class ["h3"]] [txt "Eintrag Bearbeiten"]
+    page [ a ~a:[ a_class ["float-right"; "btn"; "btn-secondary"]
+                ; a_href ".."
+                ]
+             [ txt "Zurück zur Übersicht" ]
+         ; h1 ~a:[a_class ["h3"]] [txt "Eintrag Bearbeiten"]
          ; form ~a:[ a_method `Post
                    ; a_enctype "multipart/form-data"
                    ]
@@ -167,10 +172,10 @@ module View = struct
                    let name' x = ("img" ^ "-" ^ id_prefix ^ "-" ^ x) in
                    let input' name lbl typ v =
                      BS.input ~id ~name:(name' name) ~lbl typ v
-                   and action name lbl =
+                   and action ?(c="btn-light") name lbl =
                      li ~a:[a_class ["list-inline-item"]]
                        [ button ~a:[ a_formaction ("?" ^ name ^ "=" ^ i)
-                                   ; a_class ["btn"; "btn-light"]
+                                   ; a_class ["btn"; c]
                                    ] [txt lbl]
                        ]
                    in
@@ -195,7 +200,7 @@ module View = struct
                          ; input' "filename" "" `Hidden (Some x.filename)
                          ; input' "position" "" `Hidden (Some i)
                          ; ul ~a:[a_class ["list-inline"; "float-left"]]
-                             [ action "delete" "✖" ]
+                             [ action ~c:"btn-danger" "delete" "✖" ]
                          ; ul ~a:[a_class ["list-inline"; "float-right"]]
                              [ action "up" "🢁"
                              ; action "down" "🡻"
@@ -218,10 +223,11 @@ module View = struct
                              ] ()
                   ])
              ; div ~a:[a_class ["clearfix"; "pt-3"]]
-                 [ a ~a:[ a_href ".."
-                        ; a_class ["btn"; "btn-secondary"; "float-left"]
+                 [ button ~a:[ a_formaction (Location.delete_post key)
+                        ; a_class ["btn"; "btn-danger"; "float-left"]
                         ]
-                     [ txt "Zurück zur Übersicht" ]
+                     [ txt "Eintrag Löschen" ]
+                 (* TODO: delete is right next to add image. Needs safeguard! *)
                  ; button ~a:[ a_button_type `Submit
                              ; a_class ["btn"; "btn-primary"; "float-right"]
                              ]
@@ -533,12 +539,12 @@ let () =
       in
       Response.redirect_to (Location.year (category, year))
     )
-  |> (* GET /new -> SHOW post form *)
+  |> (* GET /create -> SHOW post form *)
   App.get Location.create_post (fun _req ->
       let p = Post.empty in
       View.post (Store.post_key p) p  |> Response.of_html |> Lwt.return
     )
-  |> (* POST /new -> SAVE post form *)
+  |> (* POST /create -> SAVE post form *)
   App.post Location.create_post (fun req ->
       save_post req
       >|= function
@@ -585,6 +591,14 @@ let () =
             Response.redirect_to (Location.post key')
           | _ -> (* TODO communicate error *)
             Response.redirect_to (Location.post key)
+        )
+      |> (* POST /delete/category/year/post -> SAVE post form *)
+      App.post (Location.delete_post (category, ":a", ":b")) (fun req ->
+          let key = Router.(category, param req "a", param req "b") in
+          let* str = Store.master () in
+          Store.delete_post ~author:(author req) str key
+          >|= fun _ ->
+            Response.redirect_to (Location.category category)
         )
       |> (* GET /category/year/post/file -> SHOW file *)
       App.get (Location.attachment (category, ":a", ":b") ":d") (fun req ->

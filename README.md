@@ -1,6 +1,6 @@
 # To-Do
 
-- ux: deletion of new posts
+- ux: process images in background. Return thumbnails first.
 - speed: In-memory Irmin store + background sync with remote git
 - ux: stage changes in on-disk repo before pushing to remote git
 - admin: allow configuration of remote/local git
