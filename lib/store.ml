@@ -115,6 +115,8 @@ let post_key (post : Post.t) =
     in
     escape category, year, month ^ "_" ^ (escape title)
 
+let empty_post_key = post_key (Post.empty)
+
 let compressed_jpeg data =
   let command = Lwt_process.shell
       {|convert - \

@@ -11,6 +11,7 @@ module Location = struct
   let year (c, y) = category c ^ y ^ "/"
   let post (c, y, id) = year (c, y) ^ id ^ "/"
   let attachment key file = post key ^ file
+  let create_post = "/new"
 end
 
 module View = struct
@@ -87,7 +88,11 @@ module View = struct
               ])))
 
   let posts ~categories ~category ~years ~year posts =
-    let years =
+    let create =
+      a ~a:[ a_href Location.create_post
+           ; a_class ["btn"; "btn-primary"; "float-right"]]
+        [txt "Neuer Eintrag"]
+    and years =
       let cls = ["badge"; "badge-pill"] in
       List.sort compare years
       |> List.map (fun y ->
@@ -105,7 +110,8 @@ module View = struct
         ) categories
       |> ul ~a:[a_class ["list-inline"]]
     in
-    page [ categories
+    page [ create
+         ; categories
          ; years
          ; div ~a:[a_class ["list-group"]]
              ( List.map (fun (key, post) ->
@@ -202,7 +208,7 @@ module View = struct
                |> (fun l -> div ( hr () :: l ))
              ; (let id = id "upload" in
                 div ~a:[a_class ["form-group"]]
-                  [ label ~a:[a_label_for id ] [txt "Bilder hinzufügen"]
+                  [ label ~a:[ a_label_for id ] [txt "Bilder hinzufügen"]
                   ; input ~a:[ a_input_type `File
                              ; a_name "upload"
                              ; a_id id
@@ -399,12 +405,126 @@ let author req =
 
 let crlf_regex = Str.regexp "\r\n"
 
+let save_post ?key req =
+  let files = Hashtbl.create ~random:true 5 in
+  let callback ~name:_ ~filename data =
+    if filename <> "" then (
+      let l = Hashtbl.find_opt files filename |> Option.value ~default:[] in
+      Hashtbl.replace files filename (data :: l)
+    );
+    Lwt.return ()
+  in
+  let* fields = Request.to_multipart_form_data_exn ~callback req in
+  let* jpegs =
+    Lwt_list.map_p (fun (fname, parts) ->
+        Lwt.return (fname, List.rev parts |> Astring.String.concat)
+      ) (Hashtbl.to_seq files |> List.of_seq)
+  in
+  let field name =
+    List.assoc_opt name fields
+    |> Option.map trim_opt
+    |> Option.join
+    |> Option.map (Str.global_replace crlf_regex "\n")
+  in
+  let category =
+    Option.map (fun c ->
+        if List.mem_assoc c Config.categories
+        then c else Config.category_default
+      ) (field "category")
+  and title = field "title"
+  and lead = field "lead"
+  (* TODO: Properly parse this date. input validation. see RFC 3339 *)
+  and date = field "date"
+  and place = field "place"
+  and body = field "body" |> Option.value ~default:""
+  and gallery =
+    (* get filenames *)
+    List.filter_map
+      (fun (k, v) ->
+         match Astring.String.cuts ~sep:"-" k with
+         | ["img"; id; "filename"] -> Some (id, v)
+         | _ -> None
+      )
+      fields
+    |> (* read other fields *)
+    List.map (fun (id, filename) ->
+        let field k = field ("img-" ^ id ^ "-" ^ k) in
+        let open Post in
+        let image =
+          { caption = field "caption"
+          ; source = field "source"
+          ; filename
+          }
+        and position =
+          field "position" |> Option.map int_of_string_opt
+          |> Option.join |> Option.value ~default:0
+        in
+        position, image
+      )
+    |> (* move gallery item *)
+    ( Request.query "up" req
+      |> Option.map int_of_string_opt
+      |> Option.join
+      |> function
+      | None -> fun x -> x
+      | Some i -> List.map (fun (j, x) ->
+          let j' =
+            if j = i then i - 1
+            else if j = i - 1  then i
+            else j
+          in j', x
+        )
+    )
+    |> (* move gallery item *)
+    ( Request.query "down" req
+      |> Option.map int_of_string_opt
+      |> Option.join
+      |> function
+      | None -> fun x -> x
+      | Some i -> List.map (fun (j, x) ->
+          let j' =
+            if j = i then i + 1
+            else if j = i + 1  then i
+            else j
+          in j', x
+        )
+    )
+    |> (* delete gallery entry *)
+    ( Request.query "delete" req
+      |> Option.map int_of_string_opt
+      |> Option.join
+      |> function
+      | None -> fun x -> x
+      | Some i -> List.filter (fun (j, _) -> j <> i)
+    )
+    |> (* sort gallery by position *)
+    List.sort (fun (a,_) (b,_) -> Int.compare a b)
+    |> (* drop position *)
+    List.map snd
+  in
+  let post : Post.t =
+    { head = { category
+             ; title
+             ; lead
+             ; date
+             ; place
+             ; gallery
+             ; foreign = None
+             }
+    ; body }
+  and author = author req
+  in
+  let* str = Store.master () in
+  Store.save_post str ~author ~jpegs ?key post
+
 let () =
   let foreach lst f app = List.fold_left (fun app el -> f el app) app lst in
-  App.empty
-  |> App.middleware Auth.middleware
-  |> App.middleware (Middleware.static_unix ~local_path:"static" ())
-  |> App.get Location.root (fun _req ->
+  App.empty |> (* AUTH *)
+  App.middleware Auth.middleware
+  |> (* SERVE files from ./static *)
+  App.middleware (Middleware.static_unix ~local_path:"static" ())
+  |> (* GET / -> REDIRECT category/year *)
+  App.get Location.root (fun _req ->
       let* str = Store.master () in
       let category = Config.category_default in
       let+ year =
@@ -413,9 +533,23 @@ let () =
       in
       Response.redirect_to (Location.year (category, year))
     )
+  |> (* GET /new -> SHOW post form *)
+  App.get Location.create_post (fun _req ->
+      let p = Post.empty in
+      View.post (Store.post_key p) p  |> Response.of_html |> Lwt.return
+    )
+  |> (* POST /new -> SAVE post form *)
+  App.post Location.create_post (fun req ->
+      save_post req
+      >|= function
+      | Ok key' ->
+        Response.redirect_to (Location.post key')
+      | _ -> (* TODO communicate error *)
+        Response.redirect_to Location.create_post
+    )
   |> foreach Config.categories (fun (category, _) app ->
-      app
-      |> App.get (Location.category category) (fun _req ->
+      app |> (* GET /category -> REDIRECT category/year *)
+      App.get (Location.category category) (fun _req ->
           let* str = Store.master () in
           let+ year =
             Store.get_years str category
@@ -423,7 +557,8 @@ let () =
           in
           Response.redirect_to (Location.year (category, year))
         )
-      |> App.get (Location.year (category, ":a")) (fun req ->
+      |> (* GET /category/year -> SHOW overview *)
+      App.get (Location.year (category, ":a")) (fun req ->
           let year = Router.param req "a" in
           let* str = Store.master () in
           let+ years = Store.get_years str category
@@ -432,7 +567,8 @@ let () =
           let categories = Config.categories in
           View.posts ~categories ~category ~years ~year posts |> Response.of_html
         )
-      |> App.get (Location.post (category, ":a", ":b")) (fun req ->
+      |> (* GET /category/year/post -> SHOW post form *)
+      App.get (Location.post (category, ":a", ":b")) (fun req ->
           let key = Router.(category, param req "a", param req "b") in
           Store.master ()
           >>= fun str -> Store.get_post str key
@@ -440,128 +576,18 @@ let () =
           | None -> Response.of_plain_text ~status:(`Code 404) "not found"
           | Some post -> View.post key post |> Response.of_html
         )
-      |> App.post (Location.post (category, ":a", ":b")) (fun req ->
+      |> (* POST /category/year/post -> SAVE post form *)
+      App.post (Location.post (category, ":a", ":b")) (fun req ->
           let key = Router.(category, param req "a", param req "b") in
-          let files = Hashtbl.create ~random:true 5 in
-          let callback ~name:_ ~filename data =
-            if filename <> "" then (
-              let l = Hashtbl.find_opt files filename |> Option.value ~default:[] in
-              Hashtbl.replace files filename (data :: l)
-            );
-            Lwt.return ()
-          in
-          let* fields = Request.to_multipart_form_data_exn ~callback req in
-          let* jpegs =
-            Lwt_list.map_p (fun (fname, parts) ->
-                let () = Logs.info
-                    (fun m -> m "File upload: %s" (Location.attachment key fname))
-                in
-                Lwt.return (fname, List.rev parts |> Astring.String.concat)
-              ) (Hashtbl.to_seq files |> List.of_seq)
-          in
-          let field name =
-            List.assoc_opt name fields
-            |> Option.map trim_opt
-            |> Option.join
-            |> Option.map (Str.global_replace crlf_regex "\n")
-          in
-          let category =
-            Option.map (fun c ->
-                if List.mem_assoc c Config.categories
-                then c else Config.category_default
-              ) (field "category")
-          and title = field "title"
-          and lead = field "lead"
-          (* TODO: Properly parse this date. input validation. see RFC 3339 *)
-          and date = field "date"
-          and place = field "place"
-          and body = field "body" |> Option.value ~default:""
-          and gallery =
-            (* get filenames *)
-            List.filter_map
-              (fun (k, v) ->
-                 match Astring.String.cuts ~sep:"-" k with
-                 | ["img"; id; "filename"] -> Some (id, v)
-                 | _ -> None
-              )
-              fields
-            |> (* read other fields *)
-            List.map (fun (id, filename) ->
-                let field k = field ("img-" ^ id ^ "-" ^ k) in
-                let open Post in
-                let image =
-                  { caption = field "caption"
-                  ; source = field "source"
-                  ; filename
-                  }
-                and position =
-                  field "position" |> Option.map int_of_string_opt
-                  |> Option.join |> Option.value ~default:0
-                in
-                position, image
-              )
-            |> (* move gallery item *)
-            ( Request.query "up" req
-              |> Option.map int_of_string_opt
-              |> Option.join
-              |> function
-              | None -> fun x -> x
-              | Some i -> List.map (fun (j, x) ->
-                  let j' =
-                    if j = i then i - 1
-                    else if j = i - 1  then i
-                    else j
-                  in j', x
-                )
-            )
-            |> (* move gallery item *)
-            ( Request.query "down" req
-              |> Option.map int_of_string_opt
-              |> Option.join
-              |> function
-              | None -> fun x -> x
-              | Some i -> List.map (fun (j, x) ->
-                  let j' =
-                    if j = i then i + 1
-                    else if j = i + 1  then i
-                    else j
-                  in j', x
-                )
-            )
-            |> (* delete gallery entry *)
-            ( Request.query "delete" req
-              |> Option.map int_of_string_opt
-              |> Option.join
-              |> function
-              | None -> fun x -> x
-              | Some i -> List.filter (fun (j, _) -> j <> i)
-            )
-            |> (* sort gallery by position *)
-            List.sort (fun (a,_) (b,_) -> Int.compare a b)
-            |> (* drop position *)
-            List.map snd
-          in
-          let post : Post.t =
-            { head = { category
-                     ; title
-                     ; lead
-                     ; date
-                     ; place
-                     ; gallery
-                     ; foreign = None
-                     }
-            ; body }
-          and author = author req
-          in
-          let* str = Store.master () in
-          Store.save_post str ~author ~jpegs ~key post
+          save_post ~key req
           >|= function
           | Ok key' ->
             Response.redirect_to (Location.post key')
           | _ -> (* TODO communicate error *)
             Response.redirect_to (Location.post key)
         )
-      |> App.get (Location.attachment (category, ":a", ":b") ":d") (fun req ->
+      |> (* GET /category/year/post/file -> SHOW file *)
+      App.get (Location.attachment (category, ":a", ":b") ":d") (fun req ->
           let key = Router.(category, param req "a", param req "b")
           and fname = Router.param req "d"
           in
