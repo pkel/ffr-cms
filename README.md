@@ -8,3 +8,17 @@
 - speed: irmin middleware with support for caching.
   * lazy version: use a git checkout
 - speed: incremental import / do not re-encode images
+
+# Image strategy proposal
+
+Netlify seems to support git-lfs for images. It can also rescale them
+for us (2.5k images per month should be enough for our needs).
+
+We could hook up git-lfs command line tools from OCaml. Saving images
+would be piping to disk. Requesting images would be via opium static
+file middleware. Image-magick conversion might not be needed on the
+server. We might run into repo size limits (Gitlab 10GB).
+
+To avoid the repo size limit, we could do a mixed approach: Shrink
+images to the lower 100k file size. Maybe 1280x1280. Then store them in
+lfs.
