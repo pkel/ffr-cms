@@ -1,13 +1,12 @@
 # To-Do
 
-- ux: process images in background. Return thumbnails first.
 - speed: In-memory Irmin store + background sync with remote git
 - ux: stage changes in on-disk repo before pushing to remote git
 - admin: allow configuration of remote/local git
 - admin: read passwords from remote git + tool for writing these passwords
-- speed: irmin middleware with support for caching.
-  * lazy version: use a git checkout
+- fix: Return proper Etags as soon as opium supports Lwt.t etags
 - speed: incremental import / do not re-encode images
+- ux: confirmation before deletion of images/posts
 
 # Image strategy proposal
 
@@ -22,3 +21,6 @@ server. We might run into repo size limits (Gitlab 10GB).
 To avoid the repo size limit, we could do a mixed approach: Shrink
 images to the lower 100k file size. Maybe 1280x1280. Then store them in
 lfs.
+
+For now, we should be fine with 1280x1280 and aggressive compression,
+directly tracked in git.

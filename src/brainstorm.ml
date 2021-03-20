@@ -523,12 +523,21 @@ let save_post ?key req =
   let* str = Store.master () in
   Store.save_post str ~author ~jpegs ?key post
 
+let etag = Unix.time () |> Hashtbl.hash |> Printf.sprintf "%x"
+
 let () =
   let foreach lst f app = List.fold_left (fun app el -> f el app) app lst in
   App.empty |> (* AUTH *)
   App.middleware Auth.middleware
   |> (* SERVE files from ./static *)
-  App.middleware (Middleware.static_unix ~local_path:"static" ())
+  App.middleware (
+    let local_path = "static"
+    and etag_of_fname _fname =
+      (* TODO: Open issue/PR regarding Lwt.t return type.
+       * Derive etag from file modification date
+       *)
+      Some etag
+    in Middleware.static_unix ~local_path ~etag_of_fname ())
   |> (* GET / -> REDIRECT category/year *)
   App.get Location.root (fun _req ->
       let* str = Store.master () in
@@ -600,22 +609,34 @@ let () =
           >|= fun _ ->
             Response.redirect_to (Location.category category)
         )
-      |> (* GET /category/year/post/file -> SHOW file *)
-      App.get (Location.attachment (category, ":a", ":b") ":d") (fun req ->
-          let key = Router.(category, param req "a", param req "b")
-          and fname = Router.param req "d"
-          in
-          let* str = Store.master () in
-          Store.get_attachment str key fname
-          >|= function
-          | None -> Response.of_plain_text ~status:(`Code 404) "not found"
-          | Some data ->
-            let headers =
-              Headers.of_list
-                [ "Content-Type", Magic_mime.lookup fname ]
-            in
-            Response.of_plain_text ~headers data
-        )
-    )
+      |> (* GET /category/year/post/file -> STATIC w/ cache *)
+      App.middleware (
+        let parse fname =
+          match Astring.String.cuts ~sep:"/" fname with
+          | [ year; post; file ] -> Some ((category, year, post), file)
+          | _ -> None
+        in
+        let read fname =
+          match parse fname with
+          | None -> Lwt.return_error `Not_found
+          | Some (key, file) ->
+            let* str = Store.master () in
+            let+ o = Store.get_attachment str key file in
+            match o with
+            | None -> Error `Not_found
+            | Some data -> Ok (Body.of_string data)
+        and uri_prefix = Location.category category
+        and etag_of_fname fname =
+          (* TODO: open Issue/PR to for [string option Lwt.t] return value
+          match parse fname with
+          | None -> Lwt.return_none
+          | Some (key, file) ->
+            let* str = Store.master () in
+            Store.get_attachment_etag str key file
+          *)
+          ignore fname;
+          Some etag
+        in Middleware.static ~read ~uri_prefix ~etag_of_fname ()
+      ))
   |> App.run_command
   |> ignore

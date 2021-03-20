@@ -82,6 +82,13 @@ let get_attachment str (category, year, id) filename =
   let open Git_store in
   find str (absolute [category; year; id; filename])
 
+let get_attachment_etag str (category, year, id) filename =
+  let open Git_store in
+  let+ l = last_modified ~n:1 str (absolute [category; year; id; filename]) in
+  match l with
+  | [ commit ] -> Some (Format.asprintf "%a" Commit.pp_hash commit)
+  | _ -> None
+
 let info ~author msg =
   let date = Unix.gettimeofday () |> Int64.of_float in
   fun () -> Irmin.Info.v ~date ~author msg
