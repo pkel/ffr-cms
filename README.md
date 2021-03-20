@@ -4,9 +4,10 @@
 - ux: stage changes in on-disk repo before pushing to remote git
 - admin: allow configuration of remote/local git
 - admin: read passwords from remote git + tool for writing these passwords
-- fix: Return proper Etags as soon as opium supports Lwt.t etags
 - speed: incremental import / do not re-encode images
 - ux: confirmation before deletion of images/posts
+- fix: Return proper Etags as soon as opium supports Lwt.t etags
+  https://github.com/rgrinberg/opium/issues/265
 
 # Image strategy proposal
 

@@ -535,6 +535,7 @@ let () =
     and etag_of_fname _fname =
       (* TODO: Open issue/PR regarding Lwt.t return type.
        * Derive etag from file modification date
+       * https://github.com/rgrinberg/opium/issues/265
        *)
       Some etag
     in Middleware.static_unix ~local_path ~etag_of_fname ())
@@ -628,6 +629,7 @@ let () =
         and uri_prefix = Location.category category
         and etag_of_fname fname =
           (* TODO: open Issue/PR to for [string option Lwt.t] return value
+           * https://github.com/rgrinberg/opium/issues/265
           match parse fname with
           | None -> Lwt.return_none
           | Some (key, file) ->
