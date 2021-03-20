@@ -28,6 +28,7 @@
   (description ".")
   (depends
     (merlin :dev)
+    (ocp-indent :dev)
     (odig :dev)
     (odoc :dev)
     ))
