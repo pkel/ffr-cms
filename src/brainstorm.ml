@@ -261,57 +261,6 @@ open Lwt.Syntax
 open Opium
 
 module Auth = struct
-  open Sexplib.Std
-
-  type user_data =
-    { name: string (* goes into commit message *)
-    ; email: string (* goes into commit message *)
-    } [@@deriving sexp_of]
-
-  type user_auth =
-    { argon2encoded: string }
-
-  type user =
-    { data: user_data
-    ; auth: user_auth
-    }
-
-  let _init =
-    (* Seed Rng and reseed it regularly *)
-    Nocrypto_entropy_lwt.initialize ()
-
-  let salt len =
-    Nocrypto.Rng.generate len |> Cstruct.to_string
-
-  let user ~email ~name pwd : user =
-    let salt_len = 16 in
-    let salt = salt salt_len
-    and t_cost = 1
-    and m_cost = 1 lsl 20
-    and parallelism = 4
-    and hash_len = 16
-    and kind = Argon2.ID
-    and version = Argon2.VERSION_13
-    in
-    let encoded_len =
-      Argon2.encoded_len ~salt_len ~t_cost ~m_cost ~kind ~hash_len ~parallelism
-    in
-    let argon2encoded =
-      Argon2.hash ~t_cost ~m_cost ~parallelism ~pwd ~salt ~hash_len
-        ~encoded_len ~version ~kind
-      |> Result.map snd
-      |> Result.get_ok
-    in
-    { data = {name ; email}
-    ; auth = {argon2encoded}
-    }
-
-  (* TODO: read these entries from the git repository *)
-  let users =
-    [ "pkel", user ~email:"patrik@pkel.dev" ~name:"Patrik Keller"
-        "FZMV9Kgha69fN3sAbiK2" ]
-
-  let nobody = user ~email:"" ~name:"" (salt 16)
 
   let sessions_dbm = Dbm.opendbm "_sessions" [Dbm_rdwr; Dbm_create] 0o600
   let sessions = Hashtbl.create 7
@@ -319,7 +268,7 @@ module Auth = struct
   let auth_cookie_name = "session"
 
   let user_key =
-    Rock.Context.Key.create ("auth_user", sexp_of_user_data)
+    Rock.Context.Key.create ("auth_user", User.sexp_of_t)
 
   let user req =
     let open Request in
@@ -329,17 +278,16 @@ module Auth = struct
     (* handle post from login form *)
     try
       let* user_id = Request.urlencoded "user" req >|= Option.get
-      and* pwd = Request.urlencoded "password" req >|= Option.get
+      and* password = Request.urlencoded "password" req >|= Option.get
       in
       let registered, user =
-        match List.assoc_opt user_id users with
+        match List.assoc_opt user_id User.users with
         | Some x -> true, x
-        | None -> false, nobody
+        | None -> false, User.nobody
       in
-      let encoded = user.auth.argon2encoded in
-      assert (Argon2.verify ~encoded ~pwd ~kind:ID |> Result.get_ok);
+      assert (User.valid_password user password);
       (* Intentionally check registered after hashing.
-       * Otherwise, we provide a username oracle. *)
+       * Otherwise, we'd provide a username oracle. *)
       assert registered;
       let id =
         Nocrypto.Rng.generate 32
@@ -347,7 +295,7 @@ module Auth = struct
         |> Cstruct.to_string
       in
       Dbm.replace sessions_dbm id user_id; (* store session persistently *)
-      Hashtbl.replace sessions id user.data; (* store session *)
+      Hashtbl.replace sessions id user; (* store session *)
       Response.redirect_to req.target (* redirect get *)
       |> Response.add_cookie
         ~http_only:true
@@ -378,10 +326,10 @@ module Auth = struct
         (* Authenticated (persistent store) *)
         let user = Dbm.find sessions_dbm cookie in
         begin
-          match List.assoc_opt user users with
+          match List.assoc_opt user User.users with
           | Some user ->
-            let env = Context.add user_key user.data req.env in
-            Hashtbl.replace sessions cookie user.data;
+            let env = Context.add user_key user req.env in
+            Hashtbl.replace sessions cookie user;
             handler { req with env }
           | None ->
             (* user has a valid cookie but we cannot find his data *)

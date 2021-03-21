@@ -1,4 +1,3 @@
 (executable
  (name brainstorm)
- (libraries argon2 ffrlib dbm opium)
- (preprocess (pps ppx_sexp_conv)))
+ (libraries ffrlib dbm opium))
