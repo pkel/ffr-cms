@@ -1,0 +1,5 @@
+(executable
+ (name main)
+ (libraries ffrlib dbm opium)
+ (package ffr-opium)
+ (public_name ffr-opium))

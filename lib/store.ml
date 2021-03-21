@@ -5,13 +5,51 @@ module Git_store = Irmin_unix.Git.FS.KV(Irmin.Contents.String)
 
 let git_config = Irmin_git.config Config.repo
 
-let absolute =
-  let rev_root = List.rev Config.root in
-  fun path -> List.fold_left (fun acc el -> el :: acc) path rev_root
-
 let master () =
   let open Git_store in
   Repo.v git_config >>= master
+
+let info ~author msg =
+  let date = Unix.gettimeofday () |> Int64.of_float in
+  fun () -> Irmin.Info.v ~date ~author msg
+
+(* 1) users *)
+
+let get_users str =
+  (* TODO: split key on initialization *)
+  let key = Astring.String.cuts ~sep:"/" Config.user_file in
+  let open Git_store in
+  let+ o = find str key in
+  match o with
+  | None -> []
+  | Some data ->
+    match Sexplib.Sexp.of_string_conv data User.users_of_sexp with
+    | `Result x -> x
+    | `Error _ -> []
+
+let set_user ~author str handle user =
+  (* TODO: split key on initialization *)
+  let key = Astring.String.cuts ~sep:"/" Config.user_file in
+  let* users = get_users str in
+  let users =
+    List.remove_assoc handle users
+    |> (fun l -> (handle, user) :: l)
+    |> User.sexp_of_users
+    |> Sexplib.Sexp.to_string_hum
+  and info =
+    let msg = Printf.sprintf "Set user %s" handle
+    in info ~author msg
+  in
+  let open Git_store in
+  set ~info str key users
+
+(* 2) content / posts *)
+
+let absolute =
+  (* TODO: split/rev key on initialization *)
+  let path = Astring.String.cuts ~sep:"/" Config.content_path in
+  let rev_root = List.rev path in
+  fun path -> List.fold_left (fun acc el -> el :: acc) path rev_root
 
 (* Directory structure:
  * root / category / year-month / day_title /
@@ -89,10 +127,6 @@ let get_attachment_etag str (category, year, id) filename =
   | [ commit ] -> Some (Format.asprintf "%a" Commit.pp_hash commit)
   | _ -> None
 
-let info ~author msg =
-  let date = Unix.gettimeofday () |> Int64.of_float in
-  fun () -> Irmin.Info.v ~date ~author msg
-
 let escape =
   let regex = Str.regexp "[^0-9a-zA-ZöÖüÜäÄß-]+" in
   let replace pat rpl str =
@@ -153,7 +187,7 @@ let save_post str ~author ~jpegs ?key:okey post =
     |> info ~author
   in
   let open Git_store in
-  with_tree ~info str Config.root (fun t ->
+  with_tree ~info str (absolute []) (fun t ->
       let open Tree in
       let t =
         (* posts dir might not exists *)

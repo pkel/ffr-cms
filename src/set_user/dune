@@ -1,0 +1,5 @@
+(executable
+ (name main)
+ (libraries ffrlib)
+ (package ffr-opium)
+ (public_name set_user))

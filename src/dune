@@ -1,3 +1,0 @@
-(executable
- (name brainstorm)
- (libraries ffrlib dbm opium))

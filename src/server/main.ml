@@ -276,12 +276,13 @@ module Auth = struct
 
   let post_login req =
     (* handle post from login form *)
-    try
-      let* user_id = Request.urlencoded "user" req >|= Option.get
-      and* password = Request.urlencoded "password" req >|= Option.get
-      in
+    let+ handle = Request.urlencoded "user" req >|= Option.get
+    and+ password = Request.urlencoded "password" req >|= Option.get
+    and+ users = Store.master () >>= Store.get_users
+    in try
       let registered, user =
-        match List.assoc_opt user_id User.users with
+        (* TODO: Do constant time lookup here ?! *)
+        match List.assoc_opt handle users with
         | Some x -> true, x
         | None -> false, User.nobody
       in
@@ -294,7 +295,7 @@ module Auth = struct
         |> Nocrypto.Base64.encode
         |> Cstruct.to_string
       in
-      Dbm.replace sessions_dbm id user_id; (* store session persistently *)
+      Dbm.replace sessions_dbm id handle; (* store session persistently *)
       Hashtbl.replace sessions id user; (* store session *)
       Response.redirect_to req.target (* redirect get *)
       |> Response.add_cookie
@@ -303,11 +304,11 @@ module Auth = struct
         ~expires:`Session
         ~scope:(Uri.of_string "/")
         (auth_cookie_name, id)
-      |> Lwt.return
     with _ ->
-      View.login ~message:"login failed" ()
+      View.login ~message:"Login fehlgeschlagen." ()
       |> Response.of_html
-      |> Lwt.return
+
+  let get_login () = View.login () |> Response.of_html |> Lwt.return
 
   let dbm_mem dbm key =
     match Dbm.find dbm key with
@@ -325,15 +326,18 @@ module Auth = struct
       | Some cookie when dbm_mem sessions_dbm cookie ->
         (* Authenticated (persistent store) *)
         let user = Dbm.find sessions_dbm cookie in
+        let* users = Store.master () >>= Store.get_users in
         begin
-          match List.assoc_opt user User.users with
+          match List.assoc_opt user users with
           | Some user ->
             let env = Context.add user_key user req.env in
             Hashtbl.replace sessions cookie user;
             handler { req with env }
           | None ->
             (* user has a valid cookie but we cannot find his data *)
-            Response.redirect_to req.target |> Lwt.return
+            (* invalidate cookie, show login form *)
+            Dbm.remove sessions_dbm cookie;
+            get_login ()
         end
       | _ ->
         (* Not authenticated *)
@@ -343,7 +347,7 @@ module Auth = struct
           post_login req
         | `GET ->
           (* show login form *)
-          View.login () |> Response.of_html |> Lwt.return
+          get_login ()
         | _ ->
           (* redirect get *)
           Response.redirect_to req.target |> Lwt.return

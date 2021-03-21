@@ -4,7 +4,7 @@ type t =
   { name: string (* goes into commit message *)
   ; email: string (* goes into commit message *)
   ; password: string (* argon2encoded *)
-  } [@@deriving sexp_of]
+  } [@@deriving sexp]
 
 let _init =
   (* Seed Rng and reseed it regularly *)
@@ -34,11 +34,6 @@ let t ~email ~name pwd : t =
   in
   { name ; email ; password }
 
-(* TODO: read these entries from the git repository *)
-let users =
-  [ "pkel", t ~email:"patrik@pkel.dev" ~name:"Patrik Keller"
-      "FZMV9Kgha69fN3sAbiK2" ]
-
 let nobody = t ~email:"" ~name:"" (salt 16)
 
 let valid_password user pwd =
@@ -47,3 +42,5 @@ let valid_password user pwd =
   | Ok true -> true
   | _ -> false
   | exception _ -> false
+
+type users = (string (* login/handle *) * t) list [@@deriving sexp]
