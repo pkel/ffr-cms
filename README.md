@@ -8,8 +8,20 @@
 - speed: incremental import / do not re-encode images
 - ux: confirmation before deletion of images/posts
   should  be easy with https://getbootstrap.com/docs/4.6/components/modal/
+- ux: draft posts, excluded from public website.
 - fix: Return proper Etags as soon as opium supports Lwt.t etags
   https://github.com/rgrinberg/opium/issues/265
+
+# Sync strategy
+
+Irmin / ocaml-git seem to have trouble with pushing/pulling from remote
+repositories. The straight-forward connections method (ssh + deploy key)
+seems to be not supported.
+
+For the PoC, we can just define the authorative repo to be on the server
+running the web app. Netlify/Gitlab can pull from there. Or we do
+optimistic pull/push from the opium server using git command line
+interface.
 
 # Image strategy proposal
 
