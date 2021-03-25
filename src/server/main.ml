@@ -355,7 +355,7 @@ module Auth = struct
     Rock.Middleware.create ~filter ~name:"Authentication"
 end
 
-let app_name = "brainstorm"
+let app_name = "ffr-opium"
 
 let author req =
   let user = Auth.user req |> Option.get in
