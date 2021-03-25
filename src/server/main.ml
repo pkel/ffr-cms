@@ -76,16 +76,17 @@ module View = struct
 
   let page content =
     (html
-       (head (title (txt "Brainstorm"))
+       (head (title (txt "FFR Opium"))
           [ meta ~a:[ a_charset "UTF-8" ] ()
           ; meta ~a:[ a_name "viewport"
                     ; a_content "width=device-width, initial-scale=1.0"
                     ] ()
-          ; link ~href:"/bootstrap.min.css" ~rel:[`Stylesheet] ()
-          ; link ~href:"/app.css" ~rel:[`Stylesheet] ()
+          ; link ~href:"/assets/bootstrap.min.css" ~rel:[`Stylesheet] ()
+          ; link ~href:"/assets/app.css" ~rel:[`Stylesheet] ()
           ])
-       (body ([ script (txt "0")
-              ; div ~a:[a_class ["container"; "mb-3"; "mt-3"]] content
+       (body ([ div ~a:[a_class ["container"; "mb-3"; "mt-3"]] content
+              ; script ~a:[ a_src "/assets/jquery-3.5.1.slim.min.js"] (txt "")
+              ; script ~a:[ a_src "/assets/bootstrap.bundle.min.js"] (txt "")
               ])))
 
   let posts ~categories ~category ~years ~year posts =
@@ -141,6 +142,29 @@ module View = struct
 
   let hex_hash (type a) (x: a) : string =
     Hashtbl.hash x |> Printf.sprintf "%x"
+
+  let modal ~id ~title ~actions ~body =
+    div ~a:[ a_class ["modal"]
+           ; a_id id
+           ; a_tabindex (-1)
+           ; a_aria "hidden" ["true"]
+           ]
+      [ div ~a:[a_class ["modal-dialog"; "modal-dialog-centered"]]
+          [ div ~a:[a_class ["modal-content"]]
+              [ div ~a:[a_class ["modal-header"]]
+                  [ h5 ~a:[a_class ["modal-title"]] [txt title ]
+                  ; button ~a:[ a_button_type `Button
+                              ; a_class ["close"]
+                              ; a_user_data "dismiss" "modal"
+                              ; a_aria "label" ["Close"]
+                              ]
+                      [ span ~a:[a_aria "hidden" ["true"]] [txt "⨉"] ]
+                  ]
+              ; div ~a:[a_class ["modal-body"]] body
+              ; div ~a:[a_class ["modal-footer"]] actions
+              ]
+          ]
+      ]
 
   let post key post =
     let open Post in
@@ -223,11 +247,31 @@ module View = struct
                              ] ()
                   ])
              ; div ~a:[a_class ["clearfix"; "pt-3"]]
-                 [ button ~a:[ a_formaction (Location.delete_post key)
-                        ; a_class ["btn"; "btn-danger"; "float-left"]
-                        ]
-                     [ txt "Eintrag Löschen" ]
-                 (* TODO: delete is right next to add image. Needs safeguard! *)
+                 [ button ~a:[ a_button_type `Button
+                             ; a_class ["btn"; "btn-danger"; "float-left"]
+                             ; a_user_data "toggle" "modal"
+                             ; a_user_data "target" "#modal-delete-post"
+                             ; a_formaction (Location.delete_post key)
+                               (* nojs fallback *)
+                             ]
+                     [ txt "Eintrag löschen" ]
+                 ; modal
+                     ~id:"modal-delete-post"
+                     ~title:"Eintrag löschen"
+                     ~body:
+                       [ p [txt "Wollen Sie diesen Eintrag wirklich löschen?"] ]
+                     ~actions:
+                       [ button ~a:[ a_button_type `Button
+                                   ; a_class ["btn"; "btn-primary"; "float-right"]
+                                   ; a_user_data "dismiss" "modal"
+                                   ]
+                           [ txt "Abbrechen" ]
+                       ; button ~a:[ a_button_type `Submit
+                                   ; a_formaction (Location.delete_post key)
+                                   ; a_class ["btn"; "btn-primary"; "float-left"]
+                                   ]
+                           [ txt "Löschen" ]
+                       ]
                  ; button ~a:[ a_button_type `Submit
                              ; a_class ["btn"; "btn-primary"; "float-right"]
                              ]
@@ -481,9 +525,9 @@ let () =
   let foreach lst f app = List.fold_left (fun app el -> f el app) app lst in
   App.empty |> (* AUTH *)
   App.middleware Auth.middleware
-  |> (* SERVE files from ./static *)
+  |> (* SERVE static files *)
   App.middleware (
-    let local_path = "static"
+    let local_path = Config.static_dir
     and etag_of_fname _fname =
       (* TODO: Open issue/PR regarding Lwt.t return type.
        * Derive etag from file modification date

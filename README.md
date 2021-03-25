@@ -1,13 +1,12 @@
 # To-Do
 
-- speed: In-memory Irmin store + background sync with remote git
+- hugo: re-implement gallery
+- speed: In-memory Irmin store + background sync with on-disk git
 - ux: stage changes in on-disk repo before pushing to remote git
 - admin: allow configuration of remote/local git
 - admin: tool for creating users and resetting passwords
 - admin: merge set_user as subcommand into ffr-opium.exe
 - speed: incremental import / do not re-encode images
-- ux: confirmation before deletion of images/posts
-  should  be easy with https://getbootstrap.com/docs/4.6/components/modal/
 - ux: draft posts, excluded from public website.
 - fix: Return proper Etags as soon as opium supports Lwt.t etags
   https://github.com/rgrinberg/opium/issues/265

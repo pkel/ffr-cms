@@ -16,3 +16,6 @@ let categories = [ "einsaetze", "Einsätze"
 
 (* default category *)
 let category_default = "einsaetze"
+
+(* serve static content from here *)
+let static_dir = "./static"
