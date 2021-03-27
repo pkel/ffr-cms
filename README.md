@@ -1,5 +1,6 @@
 # To-Do
 
+- Speed: Add caching headers
 - speed: In-memory Irmin store + background sync with on-disk git
 - ux: stage changes in on-disk repo before pushing to remote git
 - speed: incremental import / do not re-encode images
