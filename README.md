@@ -1,9 +1,8 @@
 # To-Do
 
+- Whitelist static content from auth and style login form
 - speed: In-memory Irmin store + background sync with on-disk git
 - ux: stage changes in on-disk repo before pushing to remote git
-- admin: tool for creating users and resetting passwords
-- admin: merge set_user as subcommand into ffr-opium.exe
 - speed: incremental import / do not re-encode images
 - ux: draft posts, excluded from public website.
 - fix: Return proper Etags as soon as opium supports Lwt.t etags

@@ -1,5 +1,5 @@
 (executable
  (name main)
- (libraries ffrlib)
+ (libraries ffrlib cmdliner)
  (package ffr-opium)
- (public_name set_user))
+ (public_name ffr-set-user))

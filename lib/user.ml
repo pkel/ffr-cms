@@ -13,7 +13,7 @@ let _init =
 let salt len =
   Nocrypto.Rng.generate len |> Cstruct.to_string
 
-let t ~email ~name pwd : t =
+let t ~email ~name ~password:pwd : t =
   let salt_len = 16 in
   let salt = salt salt_len
   and t_cost = 1
@@ -34,7 +34,7 @@ let t ~email ~name pwd : t =
   in
   { name ; email ; password }
 
-let nobody = t ~email:"" ~name:"" (salt 16)
+let nobody = t ~email:"" ~name:"" ~password:(salt 16)
 
 let valid_password user pwd =
   let encoded = user.password in
