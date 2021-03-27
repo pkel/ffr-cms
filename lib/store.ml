@@ -176,7 +176,7 @@ let compressed_jpeg data =
   in
   if n' /. n < 0.8 then data' else data
 
-let save_post str ~author ~jpegs ?key:okey post =
+let save_post str ~author ~jpegs ?(compress_jpegs=true) ?key:okey post =
   let (category, year, id) as nkey = post_key post in
   let info =
     "Eintrag speichern: " ^ year ^ "/" ^ id
@@ -227,11 +227,15 @@ let save_post str ~author ~jpegs ?key:okey post =
       in
       let* t =
         (* add new files *)
-        Lwt_list.map_p (fun (filename, data) ->
-          let+ data = compressed_jpeg data in
-          (filename, data)
-          ) jpegs
-        >>=
+        let compress =
+          if compress_jpegs then
+            Lwt_list.map_p (fun (filename, data) ->
+                let+ data = compressed_jpeg data in
+                (filename, data)
+              )
+          else Lwt.return
+        in
+        compress jpegs >>=
         Lwt_list.fold_left_s (fun t (filename, data) ->
             if filename = "index.md" then
               Lwt.return t

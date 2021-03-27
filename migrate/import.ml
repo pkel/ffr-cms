@@ -21,11 +21,8 @@ let import str fpath =
         Lwt.return (img.filename, data)
       ) post.head.gallery
   in
-  let () =
-    Printf.printf "import %s: %i images\n%!" fpath (List.length jpegs)
-  in
   let author = "ffr-opium/migrate/import.exe" in
-  Store.save_post str ~author ~jpegs post
+  Store.save_post str ~author ~jpegs ~compress_jpegs:false post
   >|= ignore
 
 let args =
