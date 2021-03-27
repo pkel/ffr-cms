@@ -1,6 +1,5 @@
 # To-Do
 
-- hugo: re-implement gallery
 - speed: In-memory Irmin store + background sync with on-disk git
 - ux: stage changes in on-disk repo before pushing to remote git
 - admin: allow configuration of remote/local git
