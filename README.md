@@ -1,6 +1,5 @@
 # To-Do
 
-- Speed: Add caching headers
 - speed: In-memory Irmin store + background sync with on-disk git
 - ux: stage changes in on-disk repo before pushing to remote git
 - ux: draft posts, excluded from public website.

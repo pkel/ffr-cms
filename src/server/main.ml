@@ -29,6 +29,8 @@ end = struct
 end
 open Whitelist
 
+let _ = whitelist "/favicon.ico"
+
 module View = struct
   open Tyxml.Html
 
@@ -554,8 +556,11 @@ let () =
        * Derive etag from file modification date
        * https://github.com/rgrinberg/opium/issues/265
        *)
-      Some etag
-    in Middleware.static_unix ~local_path ~etag_of_fname ())
+      Some etag (* Restarting the server leads to cache-invalidation *)
+    and headers =
+      (* Cache for 1 day. Then revalidate with Etag. *)
+      Opium.Headers.of_list [("Cache-Control", "max-age=62400")]
+    in Middleware.static_unix ~local_path ~etag_of_fname ~headers ())
   |> (* GET / -> REDIRECT category/year *)
   App.get Location.root (fun _req ->
       let* str = Store.master () in
@@ -644,7 +649,7 @@ let () =
             | None -> Error `Not_found
             | Some data -> Ok (Body.of_string data)
         and uri_prefix = Location.category category
-        and etag_of_fname fname =
+        and etag_of_fname _fname =
           (* TODO: open Issue/PR to for [string option Lwt.t] return value
            * https://github.com/rgrinberg/opium/issues/265
           match parse fname with
@@ -653,9 +658,11 @@ let () =
             let* str = Store.master () in
             Store.get_attachment_etag str key file
           *)
-          ignore fname;
-          Some etag
-        in Middleware.static ~read ~uri_prefix ~etag_of_fname ()
+          Some etag (* Restarting the server leads to cache-invalidation *)
+        and headers =
+          (* Cache for 1 day. Then revalidate with ETag. *)
+          Opium.Headers.of_list [("Cache-Control", "max-age=62400")]
+        in Middleware.static ~read ~uri_prefix ~headers ~etag_of_fname ()
       ))
-  |> App.run_command
-  |> ignore
+|> App.run_command
+|> ignore
