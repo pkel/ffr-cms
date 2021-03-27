@@ -2,7 +2,6 @@
 
 - speed: In-memory Irmin store + background sync with on-disk git
 - ux: stage changes in on-disk repo before pushing to remote git
-- admin: allow configuration of remote/local git
 - admin: tool for creating users and resetting passwords
 - admin: merge set_user as subcommand into ffr-opium.exe
 - speed: incremental import / do not re-encode images

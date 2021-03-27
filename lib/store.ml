@@ -3,7 +3,7 @@ open Lwt.Syntax
 
 module Git_store = Irmin_unix.Git.FS.KV(Irmin.Contents.String)
 
-let git_config = Irmin_git.config Config.repo
+let git_config = Irmin_git.config Config.t.repo
 
 let master () =
   let open Git_store in
@@ -17,9 +17,8 @@ let info ~author msg =
 
 let get_users str =
   (* TODO: split key on initialization *)
-  let key = Astring.String.cuts ~sep:"/" Config.user_file in
   let open Git_store in
-  let+ o = find str key in
+  let+ o = find str Config.t.user_file in
   match o with
   | None -> []
   | Some data ->
@@ -29,7 +28,6 @@ let get_users str =
 
 let set_user ~author str handle user =
   (* TODO: split key on initialization *)
-  let key = Astring.String.cuts ~sep:"/" Config.user_file in
   let* users = get_users str in
   let users =
     List.remove_assoc handle users
@@ -41,14 +39,12 @@ let set_user ~author str handle user =
     in info ~author msg
   in
   let open Git_store in
-  set ~info str key users
+  set ~info str Config.t.user_file users
 
 (* 2) content / posts *)
 
 let absolute =
-  (* TODO: split/rev key on initialization *)
-  let path = Astring.String.cuts ~sep:"/" Config.content_path in
-  let rev_root = List.rev path in
+  let rev_root = List.rev Config.t.content_path in
   fun path -> List.fold_left (fun acc el -> el :: acc) path rev_root
 
 (* Directory structure:
@@ -145,7 +141,7 @@ let escape =
 let post_key (post : Post.t) =
     let title = Option.value ~default:"" post.head.title
     and category =
-      let default = Config.category_default in
+      let default = Config.t.default_category in
       Option.value ~default post.head.category
     and year, month =
       let date = Option.value ~default:"0000-00-00" post.head.date in

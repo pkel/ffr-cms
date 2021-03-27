@@ -105,10 +105,10 @@ module View = struct
       |> ul ~a:[a_class ["list-inline"]]
     and categories =
       let cls = ["badge"; "badge-pill"] in
-      List.map (fun (c, l) ->
-          let cls = if c = category then "badge-secondary" :: cls else "badge-light" :: cls in
+      List.map (fun Config.{id; label} ->
+          let cls = if id = category then "badge-secondary" :: cls else "badge-light" :: cls in
           li ~a:[a_class ["list-inline-item"; "h4"]]
-            [a ~a:[ a_class cls; a_href (Location.year (c, year)) ] [ txt l ]]
+            [a ~a:[ a_class cls; a_href (Location.year (id, year)) ] [ txt label ]]
         ) categories
       |> ul ~a:[a_class ["list-inline"]]
     in
@@ -182,7 +182,8 @@ module View = struct
                    ; a_enctype "multipart/form-data"
                    ]
              [ BS.select ~id ~name:"category" ~lbl:"Rubrik"
-                 Config.categories post.head.category
+                 Config.(category_assoc t)
+                 post.head.category
              ; input' "title" "Titel"      `Text post.head.title
              ; input' "lead"  "Untertitel" `Text post.head.lead
              ; input' "place" "Ort"        `Text post.head.place
@@ -430,8 +431,8 @@ let save_post ?key req =
   in
   let category =
     Option.map (fun c ->
-        if List.mem_assoc c Config.categories
-        then c else Config.category_default
+        if List.mem_assoc c Config.(category_assoc t)
+        then c else Config.t.default_category
       ) (field "category")
   and title = field "title"
   and lead = field "lead"
@@ -527,7 +528,7 @@ let () =
   App.middleware Auth.middleware
   |> (* SERVE static files *)
   App.middleware (
-    let local_path = Config.static_dir
+    let local_path = Config.t.static_dir
     and etag_of_fname _fname =
       (* TODO: Open issue/PR regarding Lwt.t return type.
        * Derive etag from file modification date
@@ -538,7 +539,7 @@ let () =
   |> (* GET / -> REDIRECT category/year *)
   App.get Location.root (fun _req ->
       let* str = Store.master () in
-      let category = Config.category_default in
+      let category = Config.t.default_category in
       let+ year =
         Store.get_years str category
         >|= List.fold_left (fun a b -> if a > b then a else b) "2021"
@@ -559,7 +560,7 @@ let () =
       | _ -> (* TODO communicate error *)
         Response.redirect_to Location.create_post
     )
-  |> foreach Config.categories (fun (category, _) app ->
+  |> foreach Config.(category_assoc t) (fun (category, _) app ->
       app |> (* GET /category -> REDIRECT category/year *)
       App.get (Location.category category) (fun _req ->
           let* str = Store.master () in
@@ -576,7 +577,7 @@ let () =
           let+ years = Store.get_years str category
           and+ posts = Store.get_posts str (category, year)
           in
-          let categories = Config.categories in
+          let categories = Config.t.categories in
           View.posts ~categories ~category ~years ~year posts |> Response.of_html
         )
       |> (* GET /category/year/post -> SHOW post form *)
