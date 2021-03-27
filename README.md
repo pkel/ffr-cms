@@ -1,6 +1,5 @@
 # To-Do
 
-- Whitelist static content from auth and style login form
 - speed: In-memory Irmin store + background sync with on-disk git
 - ux: stage changes in on-disk repo before pushing to remote git
 - speed: incremental import / do not re-encode images

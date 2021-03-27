@@ -15,6 +15,20 @@ module Location = struct
   let delete_post (c, y, id) = root ^ "delete/" ^ (String.concat "/" [c;y;id])
 end
 
+module Whitelist : sig
+  val whitelist : string -> string
+  val whitelisted : string -> bool
+end = struct
+  module S = Set.Make(String)
+
+  let set = ref S.empty
+
+  let whitelist uri = set := S.add uri !set ; uri
+
+  let whitelisted uri = S.mem uri !set
+end
+open Whitelist
+
 module View = struct
   open Tyxml.Html
 
@@ -81,12 +95,12 @@ module View = struct
           ; meta ~a:[ a_name "viewport"
                     ; a_content "width=device-width, initial-scale=1.0"
                     ] ()
-          ; link ~href:"/assets/bootstrap.min.css" ~rel:[`Stylesheet] ()
-          ; link ~href:"/assets/app.css" ~rel:[`Stylesheet] ()
+          ; link ~href:(whitelist "/assets/bootstrap.min.css") ~rel:[`Stylesheet] ()
+          ; link ~href:(whitelist "/assets/app.css") ~rel:[`Stylesheet] ()
           ])
        (body ([ div ~a:[a_class ["container"; "mb-3"; "mt-3"]] content
-              ; script ~a:[ a_src "/assets/jquery-3.5.1.slim.min.js"] (txt "")
-              ; script ~a:[ a_src "/assets/bootstrap.bundle.min.js"] (txt "")
+              ; script ~a:[ a_src (whitelist "/assets/jquery-3.5.1.slim.min.js")] (txt "")
+              ; script ~a:[ a_src (whitelist "/assets/bootstrap.bundle.min.js")] (txt "")
               ])))
 
   let posts ~categories ~category ~years ~year posts =
@@ -282,23 +296,24 @@ module View = struct
          ]
 
   let login ?message () =
-    page ( [ h1 [txt "Login"]
-           ; form ~a:[a_method `Post]
-               [ fieldset
-                   [ label [txt "login: "]
-                   ; input ~a:[a_name "user"; a_input_type `Text] ()
-                   ; br ()
-                   ; label [txt "password: "]
-                   ; input ~a:[a_name "password"; a_input_type `Password] ()
-                   ; br ()
-                   ; input ~a:[a_value "Login"; a_input_type `Submit] ()
-                   ]
-               ]
-           ]
-           @ match message with
-           | None -> []
-           | Some m -> [p [ txt m ]]
-         )
+    let id = fun x -> "login-" ^ x in
+    let input' name lbl typ v = BS.input ~id ~name ~lbl typ v in
+    [ Some (h1 [txt "Anmeldung"])
+    ; Option.map (fun m ->
+          div ~a:[a_class ["alert"; "alert-danger"]] [ txt m ]
+        ) message
+    ; Some (form ~a:[ a_method `Post; a_class ["clearfix"] ]
+              [ input' "user" "Nutzername" `Text None
+              ; input' "password" "Passwort" `Password None
+              ; button ~a:[ a_button_type `Submit
+                          ; a_class ["btn"; "btn-primary"; "float-right"]
+                          ]
+                  [ txt "Los!" ]
+              ])
+    ]
+    |> List.filter_map (fun x -> x)
+    |> page
+
 end
 
 open Lwt.Infix
@@ -361,7 +376,7 @@ module Auth = struct
     | exception _ -> false
 
   let middleware =
-    let filter handler req =
+    let auth handler req =
       match Request.cookie auth_cookie_name req with
       | Some cookie when Hashtbl.mem sessions cookie ->
         (* Authenticated (memory) *)
@@ -397,7 +412,12 @@ module Auth = struct
           (* redirect get *)
           Response.redirect_to req.target |> Lwt.return
     in
-    Rock.Middleware.create ~filter ~name:"Authentication"
+    let whitelist_or_auth handler (req: Request.t) =
+      if whitelisted req.target
+      then handler req
+      else auth handler req
+    in
+    Rock.Middleware.create ~filter:whitelist_or_auth ~name:"Authentication"
 end
 
 let app_name = "ffr-opium"
