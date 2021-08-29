@@ -20,5 +20,12 @@ import:
 	migrate/kats-scraper.sh
 	migrate/import.sh
 
+.PHONY: push-florian
+push-florian:
+	ssh florian git -C ffr-opium switch --detach master
+	git push florian
+	ssh florian git -C ffr-opium switch master
+	# now run "cd ffr-opium && bash setup/setup.sh" on florian
+
 ffr-opium.opam devtools.opam: dune-project
 	dune build ffr-opium.opam devtools.opam

@@ -12,6 +12,7 @@ type t =
   ; content_path : string list (* path to managed content within repository *)
   ; categories : category list (* managed categories *)
   ; default_category : string (* default category (folder) *)
+  ; title : string (* website title *)
   } [@@deriving sexp]
 
 let default_s =
@@ -25,6 +26,7 @@ let default_s =
               ((id neues) (label Neuigkeiten))
              ))
  (default_category einsaetze) ; default category (id)
+ (title "ffr-cms") ; website title
  )
 |}
 

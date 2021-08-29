@@ -1,0 +1,13 @@
+[Unit]
+Description=OCaml Opium server component of ffr cms
+After=network.target
+
+[Service]
+User=cms
+WorkingDirectory=~
+Restart=always
+RestartSec=30
+ExecStart=/usr/local/bin/ffr-opium
+
+[Install]
+WantedBy=default.target

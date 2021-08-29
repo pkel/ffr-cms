@@ -35,3 +35,9 @@ lfs.
 
 For now, we should be fine with 1280x1280 and aggressive compression,
 directly tracked in git.
+
+# Setup (Ubuntu 20.04 LTS)
+
+```shell
+./setup/setup.sh
+```

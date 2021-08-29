@@ -92,7 +92,7 @@ module View = struct
 
   let page content =
     (html
-       (head (title (txt "FFR Opium"))
+       (head (title (txt Config.t.title))
           [ meta ~a:[ a_charset "UTF-8" ] ()
           ; meta ~a:[ a_name "viewport"
                     ; a_content "width=device-width, initial-scale=1.0"
