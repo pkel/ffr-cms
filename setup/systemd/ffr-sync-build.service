@@ -10,7 +10,6 @@ RestartSec=30
 ExecStart=/usr/bin/env bash on_change.sh watch
 Environment=GITDIR=_db
 Environment=OUTDIR=/var/www/ffr-cms.tr1k.de/vorschau/
-Environment=BASEURL=https://ffr-cms.tr1k.de/vorschau/
 
 [Install]
 WantedBy=default.target

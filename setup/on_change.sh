@@ -11,7 +11,6 @@ set -e
 branch=master
 gitdir=${GITDIR:-$(pwd)/_db}
 outdir=${OUTDIR:-$(pwd)/_www}
-baseurl=${BASEURL:-}
 
 if [ "$1" == "watch" ] ; then
   echo "$gitdir/.git/refs/heads/$branch" | entr bash "$0"
@@ -21,5 +20,5 @@ else
   git -C "$gitdir" pull --rebase --strategy recursive --strategy-option ours
   git -C "$gitdir" push
   git -C "$gitdir" submodule update --init --recursive
-  (cd "$gitdir" && hugo --destination="$outdir" --baseURL="$baseurl" -D --cleanDestinationDir)
+  (cd "$gitdir" && hugo --destination="$outdir" -D --cleanDestinationDir)
 fi
