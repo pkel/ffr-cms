@@ -46,15 +46,18 @@ type meta =
   ; date: string option
   ; place: string option
   ; gallery: image list
+  ; draft: unit option
   ; foreign: Yaml.value option (* used to preserve unknown yaml *)
   }
 
 let meta_to_yaml m : Yaml.value =
-  let set k v kv =
+  let set ty k v kv =
     List.remove_assoc k kv
     |> fun kv -> match v with
-    | Some s -> (k, `String s) :: kv
+    | Some s -> (k, ty s) :: kv
     | None -> kv
+  and string x = `String x
+  and flag () = `Bool true
   in
   ( match m.foreign with
     | Some (`O x) -> x
@@ -67,11 +70,12 @@ let meta_to_yaml m : Yaml.value =
       | [] -> kv
       | l -> ("gallery", `A (List.map image_to_yaml l)) :: kv
     )
-  |> set "place" m.place
-  |> set "date" m.date
-  |> set "lead" m.lead
-  |> set "title" m.title
-  |> set "category" m.category
+  |> set string "place" m.place
+  |> set string "date" m.date
+  |> set string "lead" m.lead
+  |> set string "title" m.title
+  |> set string "category" m.category
+  |> set flag "draft" m.draft
   |> fun l -> `O l
 
 let meta_of_yaml m =
@@ -79,23 +83,28 @@ let meta_of_yaml m =
    * This seems to be a fundamental problem in YAML ?! *)
   match m with
   | `O l ->
-    let get k =
+    let get_string k =
       List.assoc_opt k l
       |> Option.map (function `String x -> Some x | _ -> None)
       |> Option.join
       |> Option.map String.trim
+    and get_flag k =
+      List.assoc_opt k l
+      |> Option.map (function `String "true" | `Bool true -> Some () | _ -> None)
+      |> Option.join
     and gallery =
       match List.assoc_opt "gallery" l with
       | Some (`A l) -> List.filter_map image_of_yaml l
       | _ -> []
     in
-    Some { category = get "category"
-         ; title = get "title"
-         ; lead = get "lead"
-         ; date = get "date"
-         ; place = get "place"
+    Some { category = get_string "category"
+         ; title = get_string "title"
+         ; lead = get_string "lead"
+         ; date = get_string "date"
+         ; place = get_string "place"
          ; gallery
          ; foreign = Some m
+         ; draft = get_flag "draft"
          }
   | _ -> None
 
@@ -122,6 +131,7 @@ let empty_meta : meta =
   ; place = None
   ; gallery = []
   ; foreign = None
+  ; draft = Some ()
   }
 
 let empty : t = { head = empty_meta; body= "" }
@@ -153,6 +163,7 @@ let%test_module _ = (module struct
             ; image ~caption:"Bild 2" ~source:"CC-BY" "image2.jpg"
             ]
         ; foreign = None
+        ; draft = None
         }
     ; body = {|I'm too lazy to produce a long text here.
 Good news is, I don't have to.

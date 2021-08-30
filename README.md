@@ -4,7 +4,6 @@
   instead.
 - speed: In-memory Irmin store + background sync with on-disk git
 - ux: stage changes in on-disk repo before pushing to remote git
-- ux: draft posts, excluded from public website.
 - fix: Return proper Etags as soon as opium supports Lwt.t etags
   https://github.com/rgrinberg/opium/issues/265
 

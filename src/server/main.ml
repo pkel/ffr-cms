@@ -197,7 +197,10 @@ module View = struct
          ; form ~a:[ a_method `Post
                    ; a_enctype "multipart/form-data"
                    ]
-             [ BS.select ~id ~name:"category" ~lbl:"Rubrik"
+             [ BS.select ~id ~name:"draft" ~lbl:"Status"
+                 ["false", "öffentlich"; "true", "nicht öffentlicher Entwurf (nur Vorschau)"]
+                 (match post.head.draft with Some () -> Some "true" | None -> Some "false")
+             ; BS.select ~id ~name:"category" ~lbl:"Rubrik"
                  Config.(category_assoc t)
                  post.head.category
              ; input' "title" "Titel"      `Text post.head.title
@@ -450,6 +453,10 @@ let save_post ?key req =
     |> Option.map trim_opt
     |> Option.join
     |> Option.map (Str.global_replace crlf_regex "\n")
+  and draft =
+    List.assoc_opt "draft" fields
+    |> Option.map (function "false" -> None | _ -> Some ())
+    |> Option.join
   in
   let category =
     Option.map (fun c ->
@@ -534,6 +541,7 @@ let save_post ?key req =
              ; date
              ; place
              ; gallery
+             ; draft
              ; foreign = None
              }
     ; body }
