@@ -21,5 +21,5 @@ else
   git -C "$gitdir" pull --rebase --strategy recursive --strategy-option ours
   git -C "$gitdir" push
   git -C "$gitdir" submodule update --init --recursive
-  (cd "$gitdir" && hugo --destination="$outdir" --baseURL="$baseurl" -D)
+  (cd "$gitdir" && hugo --destination="$outdir" --baseURL="$baseurl" -D --cleanDestinationDir)
 fi
