@@ -13,6 +13,7 @@ module Location = struct
   let attachment key file = post key ^ file
   let create_post = root ^ "create"
   let delete_post (c, y, id) = root ^ "delete/" ^ (String.concat "/" [c;y;id])
+  let preview_post x = "/vorschau" ^ post x
 end
 
 module Whitelist : sig
@@ -183,7 +184,7 @@ module View = struct
           ]
       ]
 
-  let post key post =
+  let post ?(link_preview=true) key post =
     let open Post in
     let id =
       let prefix = hex_hash key in
@@ -252,7 +253,6 @@ module View = struct
                              ]
                          ]
                      ]
-
                  ) post.head.gallery
                |> List.concat_map (fun f -> [f; hr ()])
                |> (fun l -> div ( hr () :: l ))
@@ -297,6 +297,17 @@ module View = struct
                              ; a_class ["btn"; "btn-primary"; "float-right"]
                              ]
                      [ txt "Speichern" ]
+                 ; if link_preview then
+                     a ~a:[ a_class ["btn"; "btn-secondary"; "float-right"; "mr-2"]
+                          ; a_href (Location.preview_post key)
+                          ; a_title "Nach dem Speichern kann es mehrere Sekunden \
+                                     dauern, bis die Vorschau verfügbar beziehungs\
+                                     weise aktualisiert wurde. Gegebenenfalls \
+                                     muss die Vorschau-Seite neu geladen werden."
+                          ]
+                       [ txt "Vorschau" ]
+                   else
+                     div []
                  ]
              ]
          ]
