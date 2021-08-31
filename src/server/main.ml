@@ -138,7 +138,7 @@ module View = struct
                    let open Post in
                    let loc = Location.post key in
                    let date_place =
-                     Printf.sprintf "%s -- %s"
+                     Printf.sprintf "%s – %s"
                        (Option.value ~default:"" post.head.date) (* TODO pp date *)
                        (Option.value ~default:"" post.head.place)
                    and title =
@@ -146,7 +146,9 @@ module View = struct
                    in
                    let entry =
                      [ Some (p ~a:[a_class ["h5"]] [ txt title ])
-                     ; Option.map (fun l -> p [txt l]) post.head.lead
+                     ; Option.map (fun l ->
+                           p ~a:[a_class ["h6"]] [txt l]
+                         ) post.head.lead
                      ; Some (txt date_place)
                      ]
                      |> List.filter_map (fun x -> x)
@@ -195,7 +197,8 @@ module View = struct
                 ; a_href ".."
                 ]
              [ txt "Zurück zur Übersicht" ]
-         ; h1 ~a:[a_class ["h3"]] [txt "Eintrag Bearbeiten"]
+         ; h1 ~a:[a_class ["h3"]] [txt "Bearbeiten"]
+         ; hr ()
          ; form ~a:[ a_method `Post
                    ; a_enctype "multipart/form-data"
                    ]
@@ -211,6 +214,7 @@ module View = struct
              ; input' "date"  "Datum"      `Date post.head.date
              ; BS.textarea ~id ~name:"body" ~lbl:"Beitrag" ~rows:20
                  ( Some post.body )
+             ; hr ()
              ; List.mapi ( fun i x ->
                    let i = Int.to_string i in
                    let open Post in
@@ -254,8 +258,8 @@ module View = struct
                          ]
                      ]
                  ) post.head.gallery
-               |> List.concat_map (fun f -> [f; hr ()])
-               |> (fun l -> div ( hr () :: l ))
+               |> List.concat_map (fun fig -> [fig; hr ()])
+               |> div
              ; (let id = id "upload" in
                 div ~a:[a_class ["form-group"]]
                   [ label ~a:[ a_label_for id ] [txt "Bilder hinzufügen"]
@@ -267,7 +271,8 @@ module View = struct
                              ; a_class ["form-control-file"]
                              ] ()
                   ])
-             ; div ~a:[a_class ["clearfix"; "pt-3"]]
+             ; hr ()
+             ; div ~a:[a_class ["clearfix"]]
                  [ button ~a:[ a_button_type `Button
                              ; a_class ["btn"; "btn-danger"; "float-left"]
                              ; a_user_data "toggle" "modal"
