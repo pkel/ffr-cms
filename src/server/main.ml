@@ -594,7 +594,8 @@ let () =
   |> (* GET /create -> SHOW post form *)
   App.get Location.create_post (fun _req ->
       let p = Post.empty in
-      View.post (Store.post_key p) p  |> Response.of_html |> Lwt.return
+      View.post ~link_preview:false (Store.post_key p) p
+      |> Response.of_html |> Lwt.return
     )
   |> (* POST /create -> SAVE post form *)
   App.post Location.create_post (fun req ->
@@ -650,7 +651,7 @@ let () =
           let* str = Store.master () in
           Store.delete_post ~author:(author req) str key
           >|= fun _ ->
-            Response.redirect_to (Location.category category)
+          Response.redirect_to (Location.category category)
         )
       |> (* GET /category/year/post/file -> STATIC w/ cache *)
       App.middleware (
@@ -672,11 +673,11 @@ let () =
         and etag_of_fname _fname =
           (* TODO: open Issue/PR to for [string option Lwt.t] return value
            * https://github.com/rgrinberg/opium/issues/265
-          match parse fname with
-          | None -> Lwt.return_none
-          | Some (key, file) ->
-            let* str = Store.master () in
-            Store.get_attachment_etag str key file
+             match parse fname with
+             | None -> Lwt.return_none
+             | Some (key, file) ->
+             let* str = Store.master () in
+             Store.get_attachment_etag str key file
           *)
           Some etag (* Restarting the server leads to cache-invalidation *)
         and headers =
@@ -684,5 +685,5 @@ let () =
           Opium.Headers.of_list [("Cache-Control", "max-age=62400")]
         in Middleware.static ~read ~uri_prefix ~headers ~etag_of_fname ()
       ))
-|> App.run_command
-|> ignore
+  |> App.run_command
+  |> ignore
