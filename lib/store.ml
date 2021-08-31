@@ -130,6 +130,7 @@ let escape =
   in
   fun str ->
     Str.global_replace regex "_" str
+    |> Astring.String.trim ~drop:(function '_' -> true | _ -> false)
     |> replace "ö" "oe"
     |> replace "Ö" "Oe"
     |> replace "ü" "ue"
@@ -137,6 +138,7 @@ let escape =
     |> replace "ä" "ae"
     |> replace "Ä" "Ae"
     |> replace "ß" "ss"
+    |> String.lowercase_ascii
 
 let post_key (post : Post.t) =
     let title = Option.value ~default:"" post.head.title

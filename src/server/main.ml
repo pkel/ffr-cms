@@ -27,6 +27,7 @@ end = struct
 
   let whitelisted uri = S.mem uri !set
 end
+
 open Whitelist
 
 let _ = whitelist "/favicon.ico"
