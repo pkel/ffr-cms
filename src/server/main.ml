@@ -114,7 +114,7 @@ module View = struct
     and years =
       let cls = ["badge"; "badge-pill"] in
       List.sort compare years
-      |> List.map (fun y ->
+      |> List.rev_map (fun y ->
           let cls = if y = year then "badge-secondary" :: cls else "badge-light" :: cls in
           li ~a:[a_class ["list-inline-item"; "h4"]]
             [a ~a:[ a_class cls; a_href (Location.year (category, y)) ] [ txt y ]]
@@ -133,7 +133,7 @@ module View = struct
          ; categories
          ; years
          ; div ~a:[a_class ["list-group"]]
-             ( List.map (fun (key, post) ->
+             ( List.rev_map (fun (key, post) ->
                    let open Post in
                    let loc = Location.post key in
                    let date_place =
