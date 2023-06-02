@@ -3,8 +3,12 @@ build:
 	dune build
 
 .PHONY: dependencies
-dependencies: ffr-opium.opam devtools.opam
+dependencies: ffr-opium.opam
 	opam install . --deps-only
+
+.PHONY: switch
+switch: ffr-opium.opam
+	opam switch create . --deps-only
 
 .PHONY: dev-init
 dev-init:
@@ -27,5 +31,5 @@ push-florian:
 	ssh florian git -C ffr-opium switch master
 	# now run "cd ffr-opium && bash setup/setup.sh" on florian
 
-ffr-opium.opam devtools.opam: dune-project
-	dune build ffr-opium.opam devtools.opam
+ffr-opium.opam: dune-project
+	dune build ffr-opium.opam
