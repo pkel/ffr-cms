@@ -12,7 +12,6 @@
   (depends
     (ocaml (= 4.11.2))
     (argon2 (= 1.0.1))
-    (dbm (= 1.2))
     (dune (and :build (>= 2.8)))
     (irmin-unix (= 2.6.0))
     (opium (= 0.20.0))

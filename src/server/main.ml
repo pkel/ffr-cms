@@ -344,7 +344,6 @@ open Opium
 
 module Auth = struct
 
-  let sessions_dbm = Dbm.opendbm "_sessions" [Dbm_rdwr; Dbm_create] 0o600
   let sessions = Hashtbl.create 7
 
   let auth_cookie_name = "session"
@@ -377,7 +376,6 @@ module Auth = struct
         |> Nocrypto.Base64.encode
         |> Cstruct.to_string
       in
-      Dbm.replace sessions_dbm id handle; (* store session persistently *)
       Hashtbl.replace sessions id user; (* store session *)
       Response.redirect_to req.target (* redirect get *)
       |> Response.add_cookie
@@ -392,11 +390,6 @@ module Auth = struct
 
   let get_login () = View.login () |> Response.of_html |> Lwt.return
 
-  let dbm_mem dbm key =
-    match Dbm.find dbm key with
-    | _ -> true
-    | exception _ -> false
-
   let middleware =
     let auth handler req =
       match Request.cookie auth_cookie_name req with
@@ -405,22 +398,6 @@ module Auth = struct
         let user = Hashtbl.find sessions cookie in
         let env = Context.add user_key user req.env in
         handler { req with env }
-      | Some cookie when dbm_mem sessions_dbm cookie ->
-        (* Authenticated (persistent store) *)
-        let user = Dbm.find sessions_dbm cookie in
-        let* users = Store.master () >>= Store.get_users in
-        begin
-          match List.assoc_opt user users with
-          | Some user ->
-            let env = Context.add user_key user req.env in
-            Hashtbl.replace sessions cookie user;
-            handler { req with env }
-          | None ->
-            (* user has a valid cookie but we cannot find his data *)
-            (* invalidate cookie, show login form *)
-            Dbm.remove sessions_dbm cookie;
-            get_login ()
-        end
       | _ ->
         (* Not authenticated *)
         match req.meth with
