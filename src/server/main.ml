@@ -372,9 +372,9 @@ module Auth = struct
        * Otherwise, we'd provide a username oracle. *)
       assert registered;
       let id =
-        Nocrypto.Rng.generate 32
-        |> Nocrypto.Base64.encode
+        Mirage_crypto_rng_unix.getrandom 32
         |> Cstruct.to_string
+        |> Base64.encode_string
       in
       Hashtbl.replace sessions id user; (* store session *)
       Response.redirect_to req.target (* redirect get *)

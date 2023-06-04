@@ -6,12 +6,8 @@ type t =
   ; password: string (* argon2encoded *)
   } [@@deriving sexp]
 
-let _init =
-  (* Seed Rng and reseed it regularly *)
-  Nocrypto_entropy_lwt.initialize ()
-
 let salt len =
-  Nocrypto.Rng.generate len |> Cstruct.to_string
+  Mirage_crypto_rng_unix.getrandom len |> Cstruct.to_string
 
 let t ~email ~name ~password:pwd : t =
   let salt_len = 16 in

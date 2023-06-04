@@ -1,5 +1,5 @@
 (executable
  (name main)
- (libraries ffrlib opium)
+ (libraries base64 ffrlib opium)
  (package ffr-opium)
  (public_name ffr-opium))
