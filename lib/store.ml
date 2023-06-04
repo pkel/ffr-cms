@@ -1,17 +1,17 @@
 open Lwt.Infix
 open Lwt.Syntax
 
-module Git_store = Irmin_unix.Git.FS.KV(Irmin.Contents.String)
+module Git_store = Irmin_git_unix.FS.KV(Irmin.Contents.String)
 
 let git_config = Irmin_git.config Config.t.repo
 
 let master () =
   let open Git_store in
-  Repo.v git_config >>= master
+  Repo.v git_config >>= fun r -> of_branch r "master"
 
-let info ~author msg =
+let info ~author message =
   let date = Unix.gettimeofday () |> Int64.of_float in
-  fun () -> Irmin.Info.v ~date ~author msg
+  fun () -> Git_store.Info.v ~author ~message date
 
 (* 1) users *)
 
@@ -186,10 +186,11 @@ let save_post str ~author ~jpegs ?(compress_jpegs=true) ?key:okey post =
   in
   let open Git_store in
   with_tree ~info str (absolute []) (fun t ->
-      let open Tree in
       let t =
         (* posts dir might not exists *)
-        Option.value ~default:empty t
+        match t with
+        | None -> Tree.empty ()
+        | Some t -> t
       in
       let* t =
         (* if old key is given, move to new location *)
@@ -197,21 +198,21 @@ let save_post str ~author ~jpegs ?(compress_jpegs=true) ?key:okey post =
         | None -> Lwt.return t
         | Some (c, y, i) ->
           (* move to new location *)
-          let* old = get_tree t [c; y; i] in
-          remove t [c; y; i] >>= fun t ->
+          let* old = Tree.get_tree t [c; y; i] in
+          Tree.remove t [c; y; i] >>= fun t ->
           (* TODO: what if new_key != old key, but new_key exists? *)
-          add_tree t [category; year; id] old
+          Tree.add_tree t [category; year; id] old
       in
       let* t =
         (* write/update index.md *)
         let* post =
-          find t [category; year; id; "index.md"]
+          Tree.find t [category; year; id; "index.md"]
           >|= Option.map Post.of_string
           >|= function
           | None -> post
           | Some was -> Post.update ~was post
         in
-        add t [category; year; id; "index.md"] (Post.to_string post)
+        Tree.add t [category; year; id; "index.md"] (Post.to_string post)
       in
       let* t =
         (* remove files not mentioned in gallery *)
@@ -219,12 +220,12 @@ let save_post str ~author ~jpegs ?(compress_jpegs=true) ?key:okey post =
           let open Post in
           "index.md" :: List.map (fun x -> x.filename) post.head.gallery
         in
-        list t [category; year; id] >>=
+        Tree.list t [category; year; id] >>=
         Lwt_list.fold_left_s (fun acc (step, _) ->
             if List.mem step keep then
               Lwt.return acc
             else
-              remove acc [category; year; id; step]
+              Tree.remove acc [category; year; id; step]
           ) t
       in
       let* t =
@@ -242,7 +243,7 @@ let save_post str ~author ~jpegs ?(compress_jpegs=true) ?key:okey post =
             if filename = "index.md" then
               Lwt.return t
             else
-              add t [category; year; id; filename] data
+              Tree.add t [category; year; id; filename] data
           ) t
       in
       Lwt.return (Some t)

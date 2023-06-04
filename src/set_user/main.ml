@@ -45,6 +45,8 @@ let info_set_user =
     ; `P "We store an Argon2 hash of your password in a (public) git repository. We do not take security seriously. If you provide a shared password here, all your other accounts are at risk."
     ]
   in
-  Term.info "set-user" ~doc ~man
+  Cmd.info "set-user" ~doc ~man
 
-let () = Term.exit @@ Term.eval (term_set_user, info_set_user)
+let cmd = Cmd.v info_set_user term_set_user
+
+let () = Cmd.eval cmd |> exit
