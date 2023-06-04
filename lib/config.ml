@@ -7,6 +7,7 @@ type category =
 
 type t =
   { repo : string (* unix path to git repository backing the store *)
+  ; bare : bool (* whether the store is backed by a bare git repository *)
   ; static_dir : string (* unix path to statically served content *)
   ; user_file : string list (* path to user file within repository *)
   ; content_path : string list (* path to managed content within repository *)
@@ -17,7 +18,8 @@ type t =
 
 let default_s =
   {|;; Example configuration
-((repo ./_db) ; unix path to local git repository to-be-managed
+((repo ./_db.git) ; unix path to local git repository to-be-managed
+ (bare true) ; whether the git repository is bare
  (static_dir ./static) ; unix path to statically served content
  (user_file (opium-users)) ; path to user file within repository
  (content_path (content)) ; path to managed content within git repository

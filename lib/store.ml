@@ -3,7 +3,14 @@ open Lwt.Syntax
 
 module Git_store = Irmin_git_unix.FS.KV(Irmin.Contents.String)
 
-let git_config = Irmin_git.config Config.t.repo
+let git_config =
+  let dot_git =
+    if Config.t.bare then
+      Some Config.t.repo
+    else
+      None
+  in
+  Irmin_git.config ?dot_git Config.t.repo
 
 let master () =
   let open Git_store in
