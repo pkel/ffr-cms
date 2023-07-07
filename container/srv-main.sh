@@ -15,4 +15,4 @@ cat > config.sexp << EOF
  )
 EOF
 
-exec ffr-cms --port=3000 --verbose
+exec ffr-cms --port=3000 --verbose "$@"

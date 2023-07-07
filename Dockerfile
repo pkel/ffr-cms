@@ -18,7 +18,7 @@ RUN opam exec dune build && \
 FROM docker.io/debian:${DEBIAN_VERSION} as srv
 RUN apt-get update && \
   apt-get -y upgrade && \
-  apt-get install -y git libargon2-dev libev-dev libffi-dev libgmp-dev pkg-config && \
+  apt-get install -y imagemagick git libargon2-dev libev-dev libffi-dev libgmp-dev && \
   apt-get clean && \
   rm -rf /var/lib/apt/lists/*
 COPY --from=build /home/opam/bin/* /usr/bin/

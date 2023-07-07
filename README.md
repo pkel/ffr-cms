@@ -55,5 +55,5 @@ podman build --target build --tag ffr-cms/build .
 podman build --target srv --tag ffr-cms/srv .
 podman run -p 3000:3000/tcp -v "$(pwd)/_db.git":/website.git:Z --userns=keep-id:uid=1000,gid=1000 ffr-cms/srv
 # inspect container
-podman run -p 3000:3000/tcp -v "$(pwd)/_db.git":/website.git:Z --userns=keep-id:uid=1000,gid=1000 ffr-cms/srv bash
+podman run -it -p 3000:3000/tcp -v "$(pwd)/_db.git":/website.git:Z --userns=keep-id:uid=1000,gid=1000 ffr-cms/srv bash
 ```
