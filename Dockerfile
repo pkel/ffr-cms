@@ -10,7 +10,10 @@ RUN opam install . --deps-only
 
 FROM deps as build
 ADD *.opam dune* lib src /home/opam/
-RUN opam exec dune build && opam exec dune runtest
+RUN opam exec dune build && \
+  opam exec dune runtest && \
+  cp -rL _build/install/default/bin ./ && \
+  rm -rf _build
 
 FROM docker.io/debian:${DEBIAN_VERSION} as srv
 RUN apt-get update && \
@@ -18,7 +21,7 @@ RUN apt-get update && \
   apt-get install -y git libargon2-dev libev-dev libffi-dev libgmp-dev pkg-config && \
   apt-get clean && \
   rm -rf /var/lib/apt/lists/*
-COPY --from=build /home/opam/_build/install/default/bin/* /usr/bin/
+COPY --from=build /home/opam/bin/* /usr/bin/
 ADD container/srv-main.sh /usr/bin/srv-main
 ADD static /static
 RUN mkdir -p /var/lib/ffr-cms && \
