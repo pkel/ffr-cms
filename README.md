@@ -52,8 +52,10 @@ podman build --target deps --tag ffr-cms/deps .
 # build the OCaml project in a container
 podman build --target build --tag ffr-cms/build .
 # build and run the container serving the cms
-podman build --target srv --tag ffr-cms/srv .
-podman run -p 3000:3000/tcp -v "$(pwd)/_db.git":/website.git:Z --userns=keep-id:uid=1000,gid=1000 ffr-cms/srv
+podman build --target cms --tag ffr-cms/cms .
+podman run -p 3000:3000/tcp -v "$(pwd)/_db.git":/website.git:Z
+--userns=keep-id:uid=1000,gid=1000 ffr-cms/cms
 # inspect container
-podman run -it -p 3000:3000/tcp -v "$(pwd)/_db.git":/website.git:Z --userns=keep-id:uid=1000,gid=1000 ffr-cms/srv bash
+podman run -it -p 3000:3000/tcp -v "$(pwd)/_db.git":/website.git:Z
+--userns=keep-id:uid=1000,gid=1000 ffr-cms/cms bash
 ```

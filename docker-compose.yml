@@ -1,0 +1,36 @@
+version: 3
+services:
+  cms:
+    build:
+      context: .
+      target: cms
+    volumes:
+      - ./_db.git:/website.git:z
+    ports:
+      - 3000:3000
+    userns_mode: keep-id:uid=1000,gid=1000
+  checkout:
+    build:
+      context: .
+      target: checkout
+    volumes:
+      - ./_db.git:/website.git:z
+      - ./_checkout:/checkout:z
+    userns_mode: keep-id:uid=1000,gid=1000
+  preview:
+    build:
+      context: .
+      target: preview
+    volumes:
+      - ./_checkout:/checkout:z
+    ports:
+      - 3001:3001
+    userns_mode: keep-id:uid=1000,gid=1000
+  build-www:
+    build:
+      context: .
+      target: build-www
+    volumes:
+      - ./_checkout:/checkout:z
+      - ./_www:/www:z
+    userns_mode: keep-id:uid=1000,gid=1000
