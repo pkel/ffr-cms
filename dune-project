@@ -1,12 +1,12 @@
 (lang dune 2.8)
-(name ffr-opium)
+(name ffr-cms)
 (authors "Patrik Keller")
 (maintainers "patrik@pkel.dev")
 
 (generate_opam_files true)
 
 (package
-  (name ffr-opium)
+  (name ffr-cms)
   (synopsis "FFR CMS based on OCaml Opium")
   (description ".")
   (depends

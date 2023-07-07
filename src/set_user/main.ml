@@ -18,7 +18,7 @@ let set_user_lwt ~handle ~email ~name ~password =
   let* str = Store.master () in
   let user =
     User.t ~email ~name ~password
-  and author = "ffr-opium/set_user"
+  and author = "ffr-cms/set_user"
   in
   Store.set_user ~author str handle user
 
@@ -37,9 +37,9 @@ let term_set_user =
   Term.(const main $ arg_handle $ arg_email $ arg_name)
 
 let info_set_user =
-  let doc = "Set ffr-opium user" in
+  let doc = "Set ffr-cms user" in
   let man =
-    [ `P "Adds given user to the configured ffr-opium repository. Overwrites existing users with the same handle."
+    [ `P "Adds given user to the configured ffr-cms repository. Overwrites existing users with the same handle."
     ; `P "Reads user password from STDIN."
     ; `S "USE FRESH PASSWORDS"
     ; `P "We store an Argon2 hash of your password in a (public) git repository. We do not take security seriously. If you provide a shared password here, all your other accounts are at risk."

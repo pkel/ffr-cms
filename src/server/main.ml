@@ -419,7 +419,7 @@ module Auth = struct
     Rock.Middleware.create ~filter:whitelist_or_auth ~name:"Authentication"
 end
 
-let app_name = "ffr-opium"
+let app_name = "ffr-cms"
 
 let author req =
   let user = Auth.user req |> Option.get in

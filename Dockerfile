@@ -5,7 +5,7 @@ FROM docker.io/ocaml/opam:debian-${DEBIAN_VERSION}-ocaml-${OCAML_VERSION} as dep
 USER root
 RUN apt-get install -y libargon2-dev libev-dev libffi-dev libgmp-dev pkg-config
 USER opam
-ADD ffr-opium.opam /home/opam/
+ADD ffr-cms.opam /home/opam/
 RUN opam install . --deps-only
 
 FROM deps as build
@@ -21,12 +21,12 @@ RUN apt-get update && \
 COPY --from=build /home/opam/_build/install/default/bin/* /usr/bin/
 ADD container/srv-main.sh /usr/bin/srv-main
 ADD static /static
-RUN mkdir -p /var/lib/ffr-opium && \
-  useradd ffr -d /var/lib/ffr-opium && \
+RUN mkdir -p /var/lib/ffr-cms && \
+  useradd ffr -d /var/lib/ffr-cms && \
   git init --bare --initial-branch master /website.git && \
-  chown -R ffr:ffr /website.git /var/lib/ffr-opium
+  chown -R ffr:ffr /website.git /var/lib/ffr-cms
 VOLUME /website.git
-WORKDIR /var/lib/ffr-opium
+WORKDIR /var/lib/ffr-cms
 USER ffr
 CMD ["srv-main"]
 EXPOSE 3000/tcp

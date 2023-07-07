@@ -7,7 +7,7 @@ User=cms
 WorkingDirectory=~
 Restart=always
 RestartSec=30
-ExecStart=/usr/local/bin/ffr-opium
+ExecStart=/usr/local/bin/ffr-cms
 
 [Install]
 WantedBy=default.target

@@ -21,7 +21,7 @@ let import str fpath =
         Lwt.return (img.filename, data)
       ) post.head.gallery
   in
-  let author = "ffr-opium/migrate/import.exe" in
+  let author = "ffr-cms/migrate/import.exe" in
   Store.save_post str ~author ~jpegs ~compress_jpegs:false post
   >|= ignore
 

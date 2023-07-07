@@ -49,12 +49,12 @@ instructions for building the containers.
 
 ```
 # build the build image with all OCaml dependencies
-podman build --target deps --tag ffr-opium/deps .
+podman build --target deps --tag ffr-cms/deps .
 # build the OCaml project in a container
-podman build --target build --tag ffr-opium/build .
+podman build --target build --tag ffr-cms/build .
 # build and run the container serving the cms
-podman build --target srv --tag ffr-opium/srv .
-podman run -p 3000:3000/tcp -v "$(pwd)/_db.git":/website.git:Z --userns=keep-id:uid=1000,gid=1000 ffr-opium/srv
+podman build --target srv --tag ffr-cms/srv .
+podman run -p 3000:3000/tcp -v "$(pwd)/_db.git":/website.git:Z --userns=keep-id:uid=1000,gid=1000 ffr-cms/srv
 # inspect container
-podman run -p 3000:3000/tcp -v "$(pwd)/_db.git":/website.git:Z --userns=keep-id:uid=1000,gid=1000 ffr-opium/srv bash
+podman run -p 3000:3000/tcp -v "$(pwd)/_db.git":/website.git:Z --userns=keep-id:uid=1000,gid=1000 ffr-cms/srv bash
 ```
