@@ -6,7 +6,6 @@
 - ux: stage changes in on-disk repo before pushing to remote git
 - fix: Return proper Etags as soon as opium supports Lwt.t etags
   https://github.com/rgrinberg/opium/issues/265
-- investigate whether newer irmin versions support bare git repositories
 
 # Sync strategy
 
