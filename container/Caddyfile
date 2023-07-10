@@ -1,0 +1,4 @@
+http://*:3002 {
+  root * /www
+  file_server
+}
