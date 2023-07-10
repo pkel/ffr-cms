@@ -14,6 +14,7 @@ type t =
   ; categories : category list (* managed categories *)
   ; default_category : string (* default category (folder) *)
   ; title : string (* website title *)
+  ; preview_url : string (* base url of preview website *)
   } [@@deriving sexp]
 
 let default_s =
@@ -29,6 +30,7 @@ let default_s =
              ))
  (default_category einsaetze) ; default category (id)
  (title "ffr-cms") ; website title
+ (preview_url "/vorschau") ; base url of preview website
  )
 |}
 

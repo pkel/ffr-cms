@@ -1,35 +1,67 @@
 ARG DEBIAN_VERSION=11
 ARG OCAML_VERSION=4.14
 
-FROM docker.io/ocaml/opam:debian-${DEBIAN_VERSION}-ocaml-${OCAML_VERSION} as deps
+FROM docker.io/ocaml/opam:debian-${DEBIAN_VERSION}-ocaml-${OCAML_VERSION} as build-system
 USER root
-RUN apt-get install -y libargon2-dev libev-dev libffi-dev libgmp-dev pkg-config
+ADD container/install.sh /usr/bin/docker-install
+RUN docker-install libargon2-dev libev-dev libffi-dev libgmp-dev pkg-config
 USER opam
 ADD ffr-cms.opam /home/opam/
-RUN opam install . --deps-only
+RUN opam install . --deps-only && opam clean -y
 
-FROM deps as build
+FROM build-system as build-cms
 ADD *.opam dune* lib src /home/opam/
-RUN opam exec dune build && \
-  opam exec dune runtest && \
-  cp -rL _build/install/default/bin ./ && \
-  rm -rf _build
+RUN opam exec dune build && opam exec dune runtest && cp -rL _build/install/default/bin ./ && rm -rf _build
 
-FROM docker.io/debian:${DEBIAN_VERSION} as srv
-RUN apt-get update && \
-  apt-get -y upgrade && \
-  apt-get install -y git libargon2-dev libev-dev libffi-dev libgmp-dev pkg-config && \
-  apt-get clean && \
-  rm -rf /var/lib/apt/lists/*
-COPY --from=build /home/opam/bin/* /usr/bin/
-ADD container/srv-main.sh /usr/bin/srv-main
-ADD static /static
-RUN mkdir -p /var/lib/ffr-cms && \
-  useradd ffr -d /var/lib/ffr-cms && \
-  git init --bare --initial-branch master /website.git && \
-  chown -R ffr:ffr /website.git /var/lib/ffr-cms
+FROM docker.io/debian:${DEBIAN_VERSION} as base-system
+ADD container/install.sh /usr/bin/docker-install
+RUN mkdir -p /home/ffr && useradd ffr -d /home/ffr && chown -R ffr:ffr /home/ffr
+
+FROM base-system as checkout
+RUN docker-install entr git
+ENV BRANCH main
+ADD container/checkout /script
+RUN mkdir /checkout && chown -R ffr:ffr /checkout
 VOLUME /website.git
-WORKDIR /var/lib/ffr-cms
+VOLUME /checkout
+WORKDIR /home/ffr
 USER ffr
-CMD ["srv-main"]
+CMD ["bash", "/script/main.sh"]
+
+FROM base-system as hugo
+ARG HUGO_VERSION=0.84.3
+ADD https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_${HUGO_VERSION}_Linux-64bit.tar.gz /install/hugo.tar.gz
+RUN cd /install && tar -xf hugo.tar.gz && cp hugo /usr/bin && cd / && rm -r /install
+
+FROM hugo as preview
+USER ffr
+VOLUME /checkout
+WORKDIR /checkout
+CMD ["hugo", "server", "--buildDrafts", "--bind", "0.0.0.0", "--port", "3001"]
+EXPOSE 3001/tcp
+
+FROM hugo as build-www
+RUN mkdir /www && chown -R ffr:ffr /www
+USER ffr
+VOLUME /www
+VOLUME /checkout
+WORKDIR /checkout
+CMD ["hugo", "--watch", "--destination", "/www"]
+
+FROM docker.io/caddy as caddy
+ADD container/Caddyfile /etc/caddy/Caddyfile
+VOLUME /www
+EXPOSE 3002/tcp
+
+FROM base-system as cms
+ENV PREVIEW_URL /vorschau
+RUN docker-install imagemagick git libargon2-dev libev-dev libffi-dev libgmp-dev
+RUN git init --bare --initial-branch main /website.git && chown -R ffr:ffr /website.git
+ADD container/ffr-cms.sh /usr/bin/ffr-cms-wrapper
+COPY --from=build-cms /home/opam/bin/* /usr/bin/
+ADD static /static
+VOLUME /website.git
+WORKDIR /home/ffr
+USER ffr
+CMD ["ffr-cms-wrapper"]
 EXPOSE 3000/tcp

@@ -12,7 +12,8 @@ cat > config.sexp << EOF
              ))
  (default_category einsaetze) ; default category (id)
  (title "ffr-cms") ; website title
+ (preview_url "$PREVIEW_URL") ; location of site preview
  )
 EOF
 
-exec ffr-cms --port=3000 --verbose
+exec ffr-cms --port=3000 --verbose "$@"

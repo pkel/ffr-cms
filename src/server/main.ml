@@ -13,7 +13,7 @@ module Location = struct
   let attachment key file = post key ^ file
   let create_post = root ^ "create"
   let delete_post (c, y, id) = root ^ "delete/" ^ (String.concat "/" [c;y;id])
-  let preview_post x = "/vorschau" ^ post x
+  let preview_post x = Config.t.preview_url ^ post x
 end
 
 module Whitelist : sig
