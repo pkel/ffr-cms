@@ -34,10 +34,12 @@ ADD https://github.com/gohugoio/hugo/releases/download/v${HUGO_VERSION}/hugo_${H
 RUN cd /install && tar -xf hugo.tar.gz && cp hugo /usr/bin && cd / && rm -r /install
 
 FROM hugo as preview
+ENV EXTERNAL_PORT 3001
+ADD container/serve-preview.sh /script/
 USER ffr
 VOLUME /checkout
 WORKDIR /checkout
-CMD ["hugo", "server", "--buildDrafts", "--bind", "0.0.0.0", "--port", "3001"]
+CMD ["/script/serve-preview.sh" ]
 EXPOSE 3001/tcp
 
 FROM hugo as build-www
@@ -58,5 +60,5 @@ ADD static /static
 VOLUME /website.git
 WORKDIR /home/ffr
 USER ffr
-CMD ["/script/ffr-cms-wrapper.sh"]
+CMD ["/script/ffr-cms.sh"]
 EXPOSE 3000/tcp
