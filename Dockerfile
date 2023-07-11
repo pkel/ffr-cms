@@ -15,18 +15,18 @@ RUN opam exec dune build && opam exec dune runtest && cp -rL _build/install/defa
 
 FROM docker.io/debian:${DEBIAN_VERSION} as base-system
 ADD container/install.sh /usr/bin/docker-install
+RUN docker-install entr git
 RUN mkdir -p /home/ffr && useradd ffr -d /home/ffr && chown -R ffr:ffr /home/ffr
 
 FROM base-system as checkout
-RUN docker-install entr git
 ENV BRANCH main
-ADD container/checkout /script
+ADD container/watch.sh container/checkout.sh /script
 RUN mkdir /checkout && chown -R ffr:ffr /checkout
 VOLUME /website.git
 VOLUME /checkout
 WORKDIR /home/ffr
 USER ffr
-CMD ["bash", "/script/main.sh"]
+CMD ["/script/watch.sh", "/script/checkout.sh"]
 
 FROM base-system as hugo
 ARG HUGO_VERSION=0.84.3
@@ -41,17 +41,12 @@ CMD ["hugo", "server", "--buildDrafts", "--bind", "0.0.0.0", "--port", "3001"]
 EXPOSE 3001/tcp
 
 FROM hugo as build-www
+ENV BRANCH main
+ADD container/watch.sh container/build-www.sh /script
 RUN mkdir /www && chown -R ffr:ffr /www
 USER ffr
 VOLUME /www
-VOLUME /checkout
-WORKDIR /checkout
-CMD ["hugo", "--watch", "--destination", "/www"]
-
-FROM docker.io/caddy as caddy
-ADD container/Caddyfile /etc/caddy/Caddyfile
-VOLUME /www
-EXPOSE 3002/tcp
+CMD ["/script/watch.sh", "/script/build-www.sh"]
 
 FROM base-system as cms
 ENV PREVIEW_URL /vorschau
