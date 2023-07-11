@@ -20,7 +20,7 @@ RUN mkdir -p /home/ffr && useradd ffr -d /home/ffr && chown -R ffr:ffr /home/ffr
 
 FROM base-system as checkout
 ENV BRANCH main
-ADD container/watch.sh container/checkout.sh /script
+ADD container/watch.sh container/checkout.sh /script/
 RUN mkdir /checkout && chown -R ffr:ffr /checkout
 VOLUME /website.git
 VOLUME /checkout
@@ -42,7 +42,7 @@ EXPOSE 3001/tcp
 
 FROM hugo as build-www
 ENV BRANCH main
-ADD container/watch.sh container/build-www.sh /script
+ADD container/watch.sh container/build-www.sh /script/
 RUN mkdir /www && chown -R ffr:ffr /www
 USER ffr
 VOLUME /www
@@ -52,11 +52,11 @@ FROM base-system as cms
 ENV PREVIEW_URL /vorschau
 RUN docker-install imagemagick git libargon2-dev libev-dev libffi-dev libgmp-dev
 RUN git init --bare --initial-branch main /website.git && chown -R ffr:ffr /website.git
-ADD container/ffr-cms.sh /usr/bin/ffr-cms-wrapper
+ADD container/ffr-cms.sh /script/
 COPY --from=build-cms /home/opam/bin/* /usr/bin/
 ADD static /static
 VOLUME /website.git
 WORKDIR /home/ffr
 USER ffr
-CMD ["ffr-cms-wrapper"]
+CMD ["/script/ffr-cms-wrapper.sh"]
 EXPOSE 3000/tcp
