@@ -11,7 +11,7 @@ cat > config.sexp << EOF
               ((id neues) (label Neuigkeiten))
              ))
  (default_category einsaetze) ; default category (id)
- (title "ffr-cms") ; website title
+ (title "Editor") ; website title
  (preview_url "$PREVIEW_URL") ; location of site preview
  )
 EOF
