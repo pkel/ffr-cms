@@ -41,12 +41,18 @@ directly tracked in git.
 ./setup/setup.sh
 ```
 
-# Container
+# Deployment
 
-I'm working on deployment via OCI containers. The `Dockerfile` has all
-instructions for building the containers. The `docker-compose.yml` file
-defines a local test deployment.
+I deploy via OCI containers. The `Dockerfile` has all instructions for
+building the containers. The `docker-compose.yml` file defines a local
+test deployment.
 
 ```
 podman-compose up --build
 ```
+
+Then you can visit to
+- http://localhost:3000 for the cms
+- http://localhost:3001 for the live-preview the website, including
+  draft posts
+- http://localhost:3001 for the 'production' website
