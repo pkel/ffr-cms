@@ -9,7 +9,7 @@ services:
     volumes:
       - ./_db.git:/website.git:z
     ports:
-      - 3000:3000
+      - 3000:3000/tcp
     userns_mode: keep-id:uid=1000,gid=1000
   checkout:
     build:
@@ -28,7 +28,7 @@ services:
     volumes:
       - preview_checkout:/checkout
     ports:
-      - 3001:3001
+      - 3001:3001/tcp
     userns_mode: keep-id:uid=1000,gid=1000
   build-www:
     build:
@@ -43,7 +43,7 @@ services:
   caddy:
     image: docker.io/caddy
     ports:
-      - "3002:80/tcp"
+      - 3002:80/tcp
     volumes:
       - caddy_data:/data
       - caddy_config:/config
