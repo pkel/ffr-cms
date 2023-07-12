@@ -349,7 +349,7 @@ module Auth = struct
   let auth_cookie_name = "session"
 
   let user_key =
-    Rock.Context.Key.create ("auth_user", User.sexp_of_t)
+    Rock.Context.Key.create ("auth_user_data", User.sexp_of_with_handle)
 
   let user req =
     let open Request in
@@ -376,7 +376,7 @@ module Auth = struct
         |> Cstruct.to_string
         |> Base64.encode_string
       in
-      Hashtbl.replace sessions id user; (* store session *)
+      Hashtbl.replace sessions id (handle, user); (* store session *)
       Response.redirect_to req.target (* redirect get *)
       |> Response.add_cookie
         ~http_only:true
@@ -422,10 +422,26 @@ end
 let app_name = "ffr-cms"
 
 let author req =
-  let user = Auth.user req |> Option.get in
-  Printf.sprintf "%s via %s <%s>" user.name app_name user.email
+  match Auth.user req with
+  | Some (handle, user) ->
+      `Ok (Printf.sprintf "%s <%s@%s>" user.name handle Config.t.domain)
+  | None ->
+      `Not_authorized
 
 let crlf_regex = Str.regexp "\r\n"
+
+let delete_post key req =
+  let* str = Store.master () in
+  match author req with
+  | `Not_authorized ->
+      Lwt.return (Error `Not_authorized)
+  | `Ok author ->
+      let+ res = Store.delete_post ~author str key in
+      match res with
+      | Ok x -> Ok x
+      | Error (`Conflict x) -> Error (`Conflict x)
+      | Error (`Test_was x) -> Error (`Test_was x)
+      | Error (`Too_many_retries x) -> Error (`Too_many_retries x)
 
 let save_post ?key req =
   let files = Hashtbl.create ~random:true 5 in
@@ -528,21 +544,29 @@ let save_post ?key req =
     |> (* drop position *)
     List.map snd
   in
-  let post : Post.t =
-    { head = { category
-             ; title
-             ; lead
-             ; date
-             ; place
-             ; gallery
-             ; draft
-             ; foreign = None
-             }
-    ; body }
-  and author = author req
-  in
-  let* str = Store.master () in
-  Store.save_post str ~author ~jpegs ?key post
+  match author req with
+  | `Not_authorized ->
+      Lwt.return (Error `Not_authorized)
+  | `Ok author ->
+      let post : Post.t =
+        { head = { category
+                 ; title
+                 ; lead
+                 ; date
+                 ; place
+                 ; gallery
+                 ; draft
+                 ; foreign = None
+          }
+        ; body }
+       in
+       let* str = Store.master () in
+       let+ res = Store.save_post str ~author ~jpegs ?key post in
+       match res with
+       | Ok x -> Ok x
+       | Error (`Conflict x) -> Error (`Conflict x)
+       | Error (`Test_was x) -> Error (`Test_was x)
+       | Error (`Too_many_retries x) -> Error (`Too_many_retries x)
 
 let etag = Unix.time () |> Hashtbl.hash |> Printf.sprintf "%x"
 
@@ -630,8 +654,7 @@ let () =
       |> (* POST /delete/category/year/post -> SAVE post form *)
       App.post (Location.delete_post (category, ":a", ":b")) (fun req ->
           let key = Router.(category, param req "a", param req "b") in
-          let* str = Store.master () in
-          Store.delete_post ~author:(author req) str key
+          delete_post key req
           >|= fun _ ->
           Response.redirect_to (Location.category category)
         )

@@ -5,6 +5,7 @@ services:
       context: .
       target: cms
     environment:
+      DOMAIN: localhost
       PREVIEW_URL: http://localhost:3001/
     volumes:
       - ./_db.git:/website.git:z
