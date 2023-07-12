@@ -10,6 +10,7 @@ type t =
   ; bare : bool (* whether the store is backed by a bare git repository *)
   ; static_dir : string (* unix path to statically served content *)
   ; user_file : string list (* path to user file within repository *)
+  ; domain : string (* domain to use in git commit messages *)
   ; content_path : string list (* path to managed content within repository *)
   ; categories : category list (* managed categories *)
   ; default_category : string (* default category (folder) *)
@@ -22,7 +23,8 @@ let default_s =
 ((repo ./_db.git) ; unix path to local git repository to-be-managed
  (bare true) ; whether the git repository is bare
  (static_dir ./static) ; unix path to statically served content
- (user_file (opium-users)) ; path to user file within repository
+ (user_file (editors)) ; path to user file within repository
+ (domain localhost) ; domain to use in git commit messages
  (content_path (content)) ; path to managed content within git repository
  ; managed categories ; id is used as folder under content_path
  (categories (((id einsaetze) (label Einsätze))

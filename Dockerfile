@@ -51,6 +51,7 @@ VOLUME /www
 CMD ["/script/watch.sh", "/script/build-www.sh"]
 
 FROM base-system as cms
+ENV DOMAIN localhost
 ENV PREVIEW_URL /vorschau
 RUN docker-install imagemagick git libargon2-dev libev-dev libffi-dev libgmp-dev
 RUN git init --bare --initial-branch main /website.git && chown -R ffr:ffr /website.git

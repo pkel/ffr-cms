@@ -1,9 +1,6 @@
 # To-Do
 
-- ux: remove email field from user. Use <handle@configurable-domain>
-  instead.
 - speed: In-memory Irmin store + background sync with on-disk git
-- ux: stage changes in on-disk repo before pushing to remote git
 - fix: Return proper Etags as soon as opium supports Lwt.t etags
   https://github.com/rgrinberg/opium/issues/265
 
