@@ -53,3 +53,9 @@ Then you can visit to
 - http://localhost:3001 for the live-preview the website, including
   draft posts
 - http://localhost:3001 for the 'production' website
+
+## NixOS
+
+An earlier attempt to deploy via nixos w/o containers failed due to a
+broken dependency ocaml-argon2. Version 1.0.2 was released end of August
+2023 and might fix the root problems.
