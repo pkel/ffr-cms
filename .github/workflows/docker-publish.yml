@@ -26,7 +26,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [cms, build-www, checkout, preview]
+        # target: [cms, build-www, checkout, preview]
+        # target: [build-www, checkout, preview]
 
     runs-on: ubuntu-latest
     permissions:
