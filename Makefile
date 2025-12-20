@@ -21,7 +21,7 @@ test:
 
 .PHONY: import
 import:
-	migrate/kats-scraper.sh
+	migrate/kats-scraper.sh refresh
 	migrate/import.sh
 
 .PHONY: push-florian

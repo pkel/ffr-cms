@@ -1,11 +1,18 @@
 #!/bin/bash
 
 set -e
+# set -x # debug
+
+wwget () {
+  echo wget "$@"
+  wget -nv "$@"
+}
 
 fix_encoding () {
-  mv "$1" "$1.tmp"
-  iconv -f WINDOWS-1252 -t UTF-8 "$1.tmp" > "$1"
-  rm "$1.tmp"
+  # # it seems new kat-s is not returning any iso encoded stuff anymore
+  # mv "$1" "$1.tmp"
+  # iconv -f WINDOWS-1252 -t UTF-8 "$1.tmp" > "$1"
+  # rm "$1.tmp"
   dos2unix "$1"
 }
 
@@ -15,7 +22,7 @@ extract_docid () {
 
 store_doc () {
   if ! [ -e "$category/$1.html" ] ; then
-    if ! wget "$baseurl/show_document_smarty.php?DocID=$1" -O "$category/$1.html"
+    if ! wwget "$baseurl/show_document_smarty.php?DocID=$1" -O "$category/$1.html"
     then
       echo "document $1 not found on server"
       exit 1
@@ -25,29 +32,33 @@ store_doc () {
 }
 
 store_pic () {
-  fld="$category/$1.pics"
-  if ! [ -e "$fld/$2.html" ] ; then
-    if ! wget "$baseurl/showpic.php3?PicID=$2" -O "$fld/$2.html"
-    then
-      rm -f "$fld/$2.html"
-      echo "pic $2 not found on server"
-      exit 1
+  # this function is called $(store_pic xyz)
+  # all stdout has to go to stderr instead
+  {
+    fld="$category/$1.pics"
+    if ! [ -e "$fld/$2.html" ] ; then
+      if ! wwget "$baseurl/showpic.php?PicID=$2" -O "$fld/$2.html"
+      then
+        rm -f "$fld/$2.html"
+        echo "pic $2 not found on server"
+        exit 1
+      fi
+      fix_encoding "$fld/$2.html"
     fi
-    fix_encoding "$fld/$2.html"
-  fi
-  # get filename (extension may be caps or not)
-  # outlier : http://cms.kats-media.org/public/red/pics/3915_3945.peg
-  filename=$(grep -iE "/public/red/pics/[0-9_]*.(jpeg|peg|jpg|tif)" "$fld/$2.html" |\
-    head -n 1 | grep -ioE "[0-9_]*.(jpg|jpeg|peg|tif)")
-  lname=$(tr '[:upper:]' '[:lower:]' <<< "$filename")
-  if ! [ -e "media/$lname" ] ; then
-    if ! wget "$baseurl/pics/$filename" -O "media/$lname"
-    then
-      rm -f "media/$lname"
-      echo  "problem with /pics/$filename"
-      exit 1
+    # get filename (extension may be caps or not)
+    # outlier : http://cms.kats-media.org/public/red/pics/3915_3945.peg
+    filename=$(grep -iE "/public/red/pics/[0-9_]*.(jpeg|peg|jpg|tif)" "$fld/$2.html" |\
+      head -n 1 | grep -ioE "[0-9_]*.(jpg|jpeg|peg|tif)")
+    lname=$(tr '[:upper:]' '[:lower:]' <<< "$filename")
+    if ! [ -e "media/$lname" ] ; then
+      if ! wwget "$baseurl/pics/$filename" -O "media/$lname"
+      then
+        rm -f "media/$lname"
+        echo  "problem with /pics/$filename"
+        exit 1
+      fi
     fi
-  fi
+  } >&2
   echo "$lname"
 }
 
@@ -63,7 +74,7 @@ scrape () {
   mkdir -p "$category"
 
   if [ ! -e "$category.html" ] || "$refresh" ; then
-    wget "$baseurl/$listurl" -O "$category.html"
+    wwget "$baseurl/$listurl" -O "$category.html"
     fix_encoding "$category.html"
   fi
 
@@ -168,7 +179,7 @@ scrape () {
   done
 }
 
-baseurl="http://cms.kats-media.org/public/red"
+baseurl="https://cms.kats-media.org/public/red"
 
 if [ "$1" = "refresh" ]
 then
