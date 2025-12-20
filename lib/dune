@@ -1,5 +1,5 @@
 (library
  (name ffrlib)
- (libraries argon2 irmin-git.unix mirage-crypto-rng.unix yaml)
+ (libraries argon2 irmin-git.unix mirage-crypto-rng.unix sexplib yaml)
  (inline_tests)
  (preprocess (pps ppx_expect ppx_inline_test ppx_sexp_conv)))
