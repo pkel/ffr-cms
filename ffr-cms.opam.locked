@@ -1,0 +1,206 @@
+opam-version: "2.0"
+name: "ffr-cms"
+version: "dev"
+synopsis: "FFR CMS based on OCaml Opium"
+description: "."
+maintainer: "patrik@pkel.dev"
+authors: "Patrik Keller"
+depends: [
+  "angstrom" {= "0.16.1"}
+  "argon2" {= "1.0.1"}
+  "arp" {= "3.1.1"}
+  "asn1-combinators" {= "0.2.6"}
+  "astring" {= "0.8.5"}
+  "awa" {= "0.3.1"}
+  "awa-mirage" {= "0.3.1"}
+  "base" {= "v0.16.3"}
+  "base-bigarray" {= "base"}
+  "base-bytes" {= "base"}
+  "base-threads" {= "base"}
+  "base-unix" {= "base"}
+  "base64" {= "3.5.1"}
+  "bheap" {= "2.0.0"}
+  "bigarray-compat" {= "1.1.0"}
+  "bigstringaf" {= "0.10.0"}
+  "bos" {= "0.2.1"}
+  "ca-certs" {= "0.2.3"}
+  "ca-certs-nss" {= "3.101"}
+  "carton" {= "0.7.2"}
+  "carton-git" {= "0.7.2"}
+  "carton-lwt" {= "0.7.2"}
+  "cf" {= "0.5.0"}
+  "cf-lwt" {= "0.5.0"}
+  "checkseum" {= "0.5.2"}
+  "cmdliner" {= "1.3.0"}
+  "cohttp" {= "5.3.1"}
+  "cohttp-lwt" {= "5.3.0"}
+  "cohttp-lwt-unix" {= "5.3.0"}
+  "conduit" {= "7.0.0"}
+  "conduit-lwt" {= "7.0.0"}
+  "conduit-lwt-unix" {= "7.0.0"}
+  "conf-bash" {= "1"}
+  "conf-gmp" {= "5"}
+  "conf-gmp-powm-sec" {= "4"}
+  "conf-libev" {= "4-12"}
+  "conf-libffi" {= "2.0.0"}
+  "conf-pkg-config" {= "3"}
+  "cppo" {= "1.7.0"}
+  "csexp" {= "1.5.2"}
+  "cstruct" {= "6.2.0"}
+  "cstruct-lwt" {= "6.2.0"}
+  "cstruct-unix" {= "6.2.0"}
+  "ctypes" {= "0.23.0"}
+  "ctypes-foreign" {= "0.23.0"}
+  "decompress" {= "1.5.3"}
+  "digestif" {= "1.3.0"}
+  "dns" {= "8.0.0"}
+  "dns-client" {= "8.0.0"}
+  "dns-client-mirage" {= "8.0.0"}
+  "domain-name" {= "0.5.0"}
+  "duff" {= "0.5"}
+  "dune" {= "3.20.2"}
+  "dune-configurator" {= "3.20.2"}
+  "duration" {= "0.2.1"}
+  "either" {= "1.0.0"}
+  "emile" {= "1.1"}
+  "encore" {= "0.8"}
+  "eqaf" {= "0.9"}
+  "ethernet" {= "3.2.0"}
+  "faraday" {= "0.8.2"}
+  "faraday-lwt" {= "0.8.2"}
+  "faraday-lwt-unix" {= "0.8.2"}
+  "fmt" {= "0.9.0"}
+  "fpath" {= "0.7.3"}
+  "fsevents" {= "0.3.0"}
+  "fsevents-lwt" {= "0.3.0"}
+  "git" {= "3.16.1"}
+  "git-mirage" {= "3.16.1"}
+  "git-paf" {= "3.16.1"}
+  "git-unix" {= "3.16.1"}
+  "gmap" {= "0.3.0"}
+  "h2" {= "0.13.0"}
+  "happy-eyeballs" {= "2.0.1"}
+  "happy-eyeballs-lwt" {= "2.0.1"}
+  "happy-eyeballs-mirage" {= "2.0.1"}
+  "hkdf" {= "1.0.4"}
+  "hmap" {= "0.8.1"}
+  "hpack" {= "0.13.0"}
+  "httpaf" {= "0.7.1"}
+  "httpaf-lwt-unix" {= "0.7.1"}
+  "httpun-types" {= "0.2.0"}
+  "hxd" {= "0.3.2"}
+  "inotify" {= "2.6"}
+  "integers" {= "0.7.0"}
+  "ipaddr" {= "5.6.0"}
+  "ipaddr-cstruct" {= "5.6.0"}
+  "ipaddr-sexp" {= "5.6.0"}
+  "irmin" {= "3.11.0"}
+  "irmin-git" {= "3.11.0"}
+  "irmin-watcher" {= "0.5.0"}
+  "jane-street-headers" {= "v0.16.0"}
+  "jsonm" {= "1.0.2"}
+  "jst-config" {= "v0.16.0"}
+  "ke" {= "0.6"}
+  "logs" {= "0.7.0"}
+  "lru" {= "0.3.1"}
+  "lwt" {= "5.7.0"}
+  "lwt-dllist" {= "1.0.1"}
+  "lwt_ppx" {= "2.1.0"}
+  "macaddr" {= "5.6.0"}
+  "macaddr-cstruct" {= "5.6.0"}
+  "magic-mime" {= "1.3.1"}
+  "metrics" {= "0.4.1"}
+  "mimic" {= "0.0.9"}
+  "mimic-happy-eyeballs" {= "0.0.9"}
+  "mirage-clock" {= "4.2.0"}
+  "mirage-clock-unix" {= "4.2.0"}
+  "mirage-crypto" {= "0.11.3"}
+  "mirage-crypto-ec" {= "0.11.3"}
+  "mirage-crypto-pk" {= "0.11.3"}
+  "mirage-crypto-rng" {= "0.11.3"}
+  "mirage-flow" {= "5.0.0"}
+  "mirage-kv" {= "6.1.1"}
+  "mirage-mtime" {= "5.2.0"}
+  "mirage-net" {= "4.0.0"}
+  "mirage-random" {= "3.0.0"}
+  "mirage-runtime" {= "4.7.0"}
+  "mirage-sleep" {= "4.1.0"}
+  "mirage-time" {= "3.0.0"}
+  "mirage-unix" {= "5.0.1"}
+  "mtime" {= "2.1.0"}
+  "multipart-form-data" {= "0.3.0"}
+  "num" {= "1.6"}
+  "ocaml" {= "4.14.2"}
+  "ocaml-compiler-libs" {= "v0.12.4"}
+  "ocaml-config" {= "2"}
+  "ocaml-syntax-shims" {= "1.0.0"}
+  "ocaml-system" {= "4.14.2"}
+  "ocamlbuild" {= "0.15.0"}
+  "ocamlfind" {= "1.9.6"}
+  "ocamlgraph" {= "2.1.0"}
+  "ocplib-endian" {= "1.2"}
+  "opium" {= "0.20.0"}
+  "optint" {= "0.3.0"}
+  "paf" {= "0.6.0"}
+  "parsexp" {= "v0.16.0"}
+  "pbkdf" {= "1.2.0"}
+  "pecu" {= "0.7"}
+  "ppx_assert" {= "v0.16.0"}
+  "ppx_base" {= "v0.16.0"}
+  "ppx_cold" {= "v0.16.0"}
+  "ppx_compare" {= "v0.16.0"}
+  "ppx_derivers" {= "1.2.1"}
+  "ppx_deriving" {= "6.0.2"}
+  "ppx_enumerate" {= "v0.16.0"}
+  "ppx_expect" {= "v0.16.0"}
+  "ppx_globalize" {= "v0.16.0"}
+  "ppx_hash" {= "v0.16.0"}
+  "ppx_here" {= "v0.16.0"}
+  "ppx_inline_test" {= "v0.16.1"}
+  "ppx_irmin" {= "3.11.0"}
+  "ppx_optcomp" {= "v0.16.0"}
+  "ppx_repr" {= "0.7.0"}
+  "ppx_sexp_conv" {= "v0.16.0"}
+  "ppxlib" {= "0.33.0"}
+  "psq" {= "0.2.1"}
+  "ptime" {= "1.2.0"}
+  "randomconv" {= "0.1.3"}
+  "re" {= "1.12.0"}
+  "repr" {= "0.7.0"}
+  "result" {= "1.5"}
+  "rock" {= "0.20.0"}
+  "rresult" {= "0.7.0"}
+  "seq" {= "base"}
+  "sexplib" {= "v0.16.0"}
+  "sexplib0" {= "v0.16.0"}
+  "stdio" {= "v0.16.0"}
+  "stdlib-shims" {= "0.3.0"}
+  "stringext" {= "1.6.0"}
+  "tcpip" {= "8.1.0"}
+  "time_now" {= "v0.16.0"}
+  "tls" {= "0.17.5"}
+  "tls-mirage" {= "0.17.5"}
+  "topkg" {= "1.1.1"}
+  "tyxml" {= "4.6.0"}
+  "uri" {= "4.4.0"}
+  "uri-sexp" {= "4.4.0"}
+  "uutf" {= "1.0.3"}
+  "x509" {= "0.16.5"}
+  "yaml" {= "3.1.0"}
+  "yojson" {= "2.2.2"}
+  "zarith" {= "1.14"}
+]
+build: [
+  ["dune" "subst"] {dev}
+  [
+    "dune"
+    "build"
+    "-p"
+    name
+    "-j"
+    jobs
+    "@install"
+    "@runtest" {with-test}
+    "@doc" {with-doc}
+  ]
+]

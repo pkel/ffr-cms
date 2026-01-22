@@ -12,7 +12,7 @@
   (depends
     (ocaml (and (>= 4.14.1) (< 4.15)))
     (dune (and :build (>= 3.7)))
-    (irmin-git (and (>= 3.7.1) (< 3.8)))
+    (irmin-git (and (>= 3.11.0) (< 3.12)))
     (opium (and (>= 0.20.0) (< 0.21)))
     (sexplib (and (>= v0.16.0) (< v0.17)))
     (ppx_sexp_conv (and (>= v0.16.0) (< v0.17)))
